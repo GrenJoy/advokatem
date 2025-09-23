@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, FileText, Users, Calendar, Settings, AlertCircle, Upload, Clock, CheckCircle } from 'lucide-react'
+import { Plus, Search, FileText, Users, Calendar, Settings, AlertCircle, Upload, Clock, CheckCircle, MessageCircle, Send, X, Download } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -23,6 +23,13 @@ export default function App() {
   const [documents, setDocuments] = useState([])
   const [uploadProgress, setUploadProgress] = useState({})
   const [ocrProgress, setOcrProgress] = useState({})
+  const [showChat, setShowChat] = useState(false)
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatInput, setChatInput] = useState('')
+  const [isChatLoading, setIsChatLoading] = useState(false)
+  const [showPhotoModal, setShowPhotoModal] = useState(false)
+  const [selectedPhoto, setSelectedPhoto] = useState(null)
+  const [photoIndex, setPhotoIndex] = useState(0)
 
   // Load cases on component mount
   useEffect(() => {
@@ -32,7 +39,7 @@ export default function App() {
   const loadCases = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/postgres/cases')
+      const response = await fetch('/api/optimized/cases')
       if (response.ok) {
         const data = await response.json()
         setCases(data)
@@ -49,7 +56,7 @@ export default function App() {
 
   const createCase = async (caseData) => {
     try {
-      const response = await fetch('/api/postgres/cases', {
+      const response = await fetch('/api/optimized/cases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(caseData)
@@ -103,7 +110,7 @@ export default function App() {
       formData.append('caseId', selectedCase.id)
       
       // Upload with progress
-      const response = await fetch('/api/postgres/documents/upload', {
+      const response = await fetch('/api/optimized/photos/upload', {
         method: 'POST',
         body: formData,
       })
@@ -135,7 +142,7 @@ export default function App() {
 
   const pollOcrStatus = async (documentId, fileId) => {
     try {
-      const response = await fetch(`/api/postgres/documents/${documentId}/ocr-status`)
+      const response = await fetch(`/api/optimized/photos/${documentId}/ocr-status`)
       
       if (response.ok) {
         const status = await response.json()
@@ -170,20 +177,127 @@ export default function App() {
 
   const loadDocuments = async (caseId) => {
     try {
-      const response = await fetch(`/api/postgres/cases/${caseId}/documents`)
+      const response = await fetch(`/api/optimized/cases/${caseId}`)
       if (response.ok) {
-        const docs = await response.json()
-        setDocuments(docs)
+        const caseData = await response.json()
+        setDocuments(caseData.photos || [])
       }
     } catch (error) {
       console.error('Error loading documents:', error)
     }
   }
 
-  // Load documents when case is selected
+  // AI Chat functions
+  const loadChatHistory = async (caseId) => {
+    try {
+      const response = await fetch(`/api/optimized/cases/${caseId}/chat`)
+      if (response.ok) {
+        const messages = await response.json()
+        setChatMessages(messages)
+      }
+    } catch (error) {
+      console.error('Error loading chat history:', error)
+    }
+  }
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim() || !selectedCase) return
+
+    setIsChatLoading(true)
+    const userMessage = chatInput.trim()
+    setChatInput('')
+
+    // Add user message to UI immediately
+    const newUserMessage = {
+      id: Date.now(),
+      message_type: 'user',
+      message_text: userMessage,
+      created_at: new Date().toISOString()
+    }
+    setChatMessages(prev => [...prev, newUserMessage])
+
+    try {
+      const response = await fetch(`/api/optimized/cases/${selectedCase.id}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userMessage })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const aiMessage = {
+          id: Date.now() + 1,
+          message_type: 'ai',
+          message_text: data.response,
+          created_at: new Date().toISOString()
+        }
+        setChatMessages(prev => [...prev, aiMessage])
+      } else {
+        toast.error('Ошибка отправки сообщения')
+      }
+    } catch (error) {
+      console.error('Error sending message:', error)
+      toast.error('Ошибка соединения с ИИ')
+    } finally {
+      setIsChatLoading(false)
+    }
+  }
+
+  // Photo modal functions
+  const openPhotoModal = (photo, index) => {
+    setSelectedPhoto(photo)
+    setPhotoIndex(index)
+    setShowPhotoModal(true)
+  }
+
+  const nextPhoto = () => {
+    if (documents.length > 0) {
+      const nextIndex = (photoIndex + 1) % documents.length
+      setPhotoIndex(nextIndex)
+      setSelectedPhoto(documents[nextIndex])
+    }
+  }
+
+  const prevPhoto = () => {
+    if (documents.length > 0) {
+      const prevIndex = photoIndex === 0 ? documents.length - 1 : photoIndex - 1
+      setPhotoIndex(prevIndex)
+      setSelectedPhoto(documents[prevIndex])
+    }
+  }
+
+  // Download PDF with all OCR transcriptions
+  const downloadPDF = async () => {
+    if (!selectedCase) return
+
+    try {
+      const response = await fetch(`/api/optimized/cases/${selectedCase.id}/pdf`)
+      
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `case_${selectedCase.case_number}_transcriptions.pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
+        toast.success('PDF скачан успешно')
+      } else {
+        toast.error('Ошибка создания PDF')
+      }
+    } catch (error) {
+      console.error('PDF download error:', error)
+      toast.error('Ошибка скачивания PDF')
+    }
+  }
+
+  // Load documents and chat when case is selected
   useEffect(() => {
     if (selectedCase) {
       loadDocuments(selectedCase.id)
+      loadChatHistory(selectedCase.id)
     }
   }, [selectedCase])
 
@@ -247,6 +361,27 @@ export default function App() {
               <h1 className="text-2xl font-bold text-gray-900">Адвокатская Практика</h1>
             </div>
             <div className="flex items-center space-x-4">
+              {selectedCase && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={downloadPDF}
+                    className="flex items-center space-x-1"
+                  >
+                    <Download className="h-4 w-4" />
+                    <span>PDF</span>
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowChat(!showChat)}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    ИИ-чат
+                  </Button>
+                </>
+              )}
               <Button variant="outline" size="sm">
                 <Settings className="h-4 w-4 mr-2" />
                 Настройки
@@ -257,7 +392,7 @@ export default function App() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={`grid gap-8 ${showChat ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 lg:grid-cols-3'}`}>
           {/* Left Sidebar - Cases List */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm border">
@@ -335,6 +470,7 @@ export default function App() {
                 uploadProps={{ getRootProps, getInputProps, isDragActive }}
                 uploadProgress={uploadProgress}
                 ocrProgress={ocrProgress}
+                onPhotoClick={openPhotoModal}
               />
             ) : (
               <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
@@ -344,8 +480,157 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* AI Chat Panel */}
+          {showChat && selectedCase && (
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow-sm border h-[600px] flex flex-col">
+                <div className="p-4 border-b">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">ИИ-чат</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setShowChat(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-gray-500">Дело: {selectedCase.title}</p>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                  {chatMessages.map((message) => (
+                    <div 
+                      key={message.id}
+                      className={`flex ${message.message_type === 'user' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div className={`max-w-[80%] p-3 rounded-lg ${
+                        message.message_type === 'user' 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-gray-100 text-gray-900'
+                      }`}>
+                        <p className="text-sm">{message.message_text}</p>
+                        <p className="text-xs opacity-70 mt-1">
+                          {new Date(message.created_at).toLocaleTimeString()}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                  {isChatLoading && (
+                    <div className="flex justify-start">
+                      <div className="bg-gray-100 p-3 rounded-lg">
+                        <div className="flex space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="p-4 border-t">
+                  <div className="flex space-x-2">
+                    <Input
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      placeholder="Введите вопрос о деле..."
+                      onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                    />
+                    <Button 
+                      onClick={sendChatMessage}
+                      disabled={!chatInput.trim() || isChatLoading}
+                    >
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Photo Modal */}
+      <Dialog open={showPhotoModal} onOpenChange={setShowPhotoModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+          <div className="relative">
+            <div className="flex justify-between items-center p-4 border-b">
+              <h3 className="text-lg font-semibold">
+                {selectedPhoto?.original_name} ({photoIndex + 1} из {documents.length})
+              </h3>
+              <div className="flex items-center space-x-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={downloadPDF}
+                  className="flex items-center space-x-1"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Скачать PDF</span>
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setShowPhotoModal(false)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+            
+            <div className="relative bg-black flex items-center justify-center min-h-[500px]">
+              {selectedPhoto && (
+                <img 
+                  src={`data:image/svg+xml;base64,${Buffer.from(`
+                    <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+                      <rect width="400" height="300" fill="#f3f4f6"/>
+                      <text x="200" y="150" text-anchor="middle" font-family="Arial" font-size="16" fill="#6b7280">
+                        ${selectedPhoto.original_name}
+                      </text>
+                    </svg>
+                  `).toString('base64')}`}
+                  alt={selectedPhoto.original_name}
+                  className="max-w-full max-h-[70vh] object-contain"
+                />
+              )}
+              
+              {/* Navigation buttons */}
+              {documents.length > 1 && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="absolute left-4 top-1/2 transform -translate-y-1/2"
+                    onClick={prevPhoto}
+                  >
+                    ←
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2"
+                    onClick={nextPhoto}
+                  >
+                    →
+                  </Button>
+                </>
+              )}
+            </div>
+            
+            {/* OCR Text Display */}
+            {selectedPhoto?.raw_text && (
+              <div className="p-4 border-t max-h-40 overflow-y-auto">
+                <h4 className="font-semibold mb-2">Распознанный текст:</h4>
+                <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                  {selectedPhoto.raw_text}
+                </p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -440,7 +725,7 @@ function NewCaseForm({ onSubmit }) {
 }
 
 // Case Details Component
-function CaseDetails({ case_, documents, uploadProps, uploadProgress, ocrProgress }) {
+function CaseDetails({ case_, documents, uploadProps, uploadProgress, ocrProgress, onPhotoClick }) {
   const { getRootProps, getInputProps, isDragActive } = uploadProps
 
   return (
@@ -563,8 +848,12 @@ function CaseDetails({ case_, documents, uploadProps, uploadProgress, ocrProgres
             <div className="mt-6">
               <h4 className="font-medium mb-3">Загруженные документы:</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {documents.map((doc) => (
-                  <div key={doc.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                {documents.map((doc, index) => (
+                  <div 
+                    key={doc.id} 
+                    className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => onPhotoClick(doc, index)}
+                  >
                     <div className="flex items-center space-x-3">
                       <FileText className="h-8 w-8 text-blue-600" />
                       <div className="flex-1 min-w-0">
@@ -574,11 +863,14 @@ function CaseDetails({ case_, documents, uploadProps, uploadProgress, ocrProgres
                         </p>
                       </div>
                     </div>
-                    {doc.transcription && (
+                    {doc.raw_text && (
                       <div className="mt-3 text-xs text-gray-600">
-                        <strong>OCR:</strong> {doc.transcription.substring(0, 100)}...
+                        <strong>OCR:</strong> {doc.raw_text.substring(0, 100)}...
                       </div>
                     )}
+                    <div className="mt-2 text-xs text-blue-600">
+                      Нажмите для просмотра
+                    </div>
                   </div>
                 ))}
               </div>

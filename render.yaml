@@ -15,9 +15,7 @@ services:
         value: 3000
       - key: POSTGRES_URL
         value: postgresql://postgres.fulczneorzmbeajdnrtt:[YOUR-PASSWORD]@aws-1-eu-central-1.pooler.supabase.com:5432/postgres
-      - key: GOOGLE_VISION_API_KEY
-        sync: false
-      - key: GOOGLE_CLOUD_KEY_PATH
+      - key: GEMINI_API_KEY
         sync: false
       - key: CORS_ORIGINS
         value: https://legal-practice-app.onrender.com
