@@ -357,6 +357,26 @@ export default function App() {
     }
   }
 
+  // Download additional file
+  const downloadAdditionalFile = async (file) => {
+    try {
+      // Create a temporary download link
+      const blob = new Blob(['Файл: ' + file.original_name + '\nОписание: ' + (file.description || 'Нет описания')], { type: 'text/plain' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = file.original_name
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      toast.success('Файл скачан')
+    } catch (error) {
+      console.error('Download error:', error)
+      toast.error('Ошибка скачивания файла')
+    }
+  }
+
   // Load documents, chat and additional files when case is selected
   useEffect(() => {
     if (selectedCase) {
@@ -630,38 +650,50 @@ export default function App() {
                       <p className="text-sm">Нажмите "Добавить" для загрузки</p>
                     </div>
                   ) : (
-                    additionalFiles.map((file) => (
-                      <div key={file.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow">
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center space-x-2">
-                              <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                              <p className="text-sm font-medium truncate">{file.original_name}</p>
-                              {file.is_important && (
-                                <Badge variant="destructive" className="text-xs">Важно</Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(file.created_at).toLocaleDateString('ru-RU')}
-                            </p>
-                            {file.description && (
-                              <p className="text-xs text-gray-600 mt-1">{file.description}</p>
-                            )}
-                            <p className="text-xs text-gray-400">
-                              {(file.file_size / 1024).toFixed(1)} KB
-                            </p>
-                          </div>
-                          <Button 
-                            variant="ghost" 
-                            size="sm"
-                            onClick={() => deleteAdditionalFile(file.id)}
-                            className="text-red-600 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))
+                            additionalFiles.map((file) => (
+                              <div key={file.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-white">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center space-x-2 mb-2">
+                                      <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                                      <p className="text-sm font-medium truncate">{file.original_name}</p>
+                                      {file.is_important && (
+                                        <Badge variant="destructive" className="text-xs">Важно</Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mb-1">
+                                      {new Date(file.created_at).toLocaleDateString('ru-RU')}
+                                    </p>
+                                    {file.description && (
+                                      <p className="text-xs text-gray-600 mb-2">{file.description}</p>
+                                    )}
+                                    <p className="text-xs text-gray-400">
+                                      {(file.file_size / 1024).toFixed(1)} KB
+                                    </p>
+                                  </div>
+                                  <div className="flex space-x-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => downloadAdditionalFile(file)}
+                                      className="text-blue-600 hover:text-blue-700"
+                                      title="Скачать файл"
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => deleteAdditionalFile(file.id)}
+                                      className="text-red-600 hover:text-red-700"
+                                      title="Удалить файл"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))
                   )}
                 </div>
               </div>
@@ -767,21 +799,28 @@ export default function App() {
               </div>
             </div>
             
-            <div className="relative bg-black flex items-center justify-center min-h-[500px]">
-              {selectedPhoto && (
-                <img 
-                  src={`data:image/svg+xml;base64,${Buffer.from(`
-                    <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-                      <rect width="400" height="300" fill="#f3f4f6"/>
-                      <text x="200" y="150" text-anchor="middle" font-family="Arial" font-size="16" fill="#6b7280">
-                        ${selectedPhoto.original_name}
-                      </text>
-                    </svg>
-                  `).toString('base64')}`}
-                  alt={selectedPhoto.original_name}
-                  className="max-w-full max-h-[70vh] object-contain"
-                />
-              )}
+                    <div className="relative bg-gray-100 flex items-center justify-center min-h-[500px] p-4">
+                      {selectedPhoto && (
+                        <div className="text-center">
+                          <div className="bg-white rounded-lg shadow-lg p-8 mb-4">
+                            <div className="w-32 h-32 mx-auto mb-4 bg-gray-200 rounded-lg flex items-center justify-center">
+                              <FileText className="h-16 w-16 text-gray-400" />
+                            </div>
+                            <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                              {selectedPhoto.original_name}
+                            </h3>
+                            <p className="text-sm text-gray-500">
+                              Файл загружен: {new Date(selectedPhoto.created_at).toLocaleDateString('ru-RU')}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Размер: {(selectedPhoto.file_size / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                          <p className="text-sm text-gray-600">
+                            В реальном приложении здесь будет отображаться изображение
+                          </p>
+                        </div>
+                      )}
               
               {/* Navigation buttons */}
               {documents.length > 1 && (
@@ -806,15 +845,25 @@ export default function App() {
               )}
             </div>
             
-            {/* OCR Text Display */}
-            {selectedPhoto?.raw_text && (
-              <div className="p-4 border-t max-h-40 overflow-y-auto">
-                <h4 className="font-semibold mb-2">Распознанный текст:</h4>
-                <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                  {selectedPhoto.raw_text}
-                </p>
-              </div>
-            )}
+                    {/* OCR Text Display */}
+                    {selectedPhoto?.raw_text && (
+                      <div className="p-6 border-t bg-gray-50">
+                        <div className="flex items-center mb-4">
+                          <FileText className="h-5 w-5 text-blue-600 mr-2" />
+                          <h4 className="text-lg font-semibold text-gray-800">Распознанный текст</h4>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 shadow-sm border max-h-60 overflow-y-auto">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                            {selectedPhoto.raw_text}
+                          </p>
+                        </div>
+                        {selectedPhoto.confidence_score && (
+                          <div className="mt-3 text-xs text-gray-500">
+                            Уверенность OCR: {(selectedPhoto.confidence_score * 100).toFixed(1)}%
+                          </div>
+                        )}
+                      </div>
+                    )}
           </div>
         </DialogContent>
       </Dialog>
@@ -1120,31 +1169,33 @@ function CaseDetails({ case_, documents, uploadProps, uploadProgress, ocrProgres
             <div className="mt-6">
               <h4 className="font-medium mb-3">Загруженные документы:</h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {documents.map((doc, index) => (
-                  <div 
-                    key={doc.id} 
-                    className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => onPhotoClick(doc, index)}
-                  >
-                    <div className="flex items-center space-x-3">
-                      <FileText className="h-8 w-8 text-blue-600" />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{doc.original_name}</p>
-                        <p className="text-xs text-gray-500">
-                          {new Date(doc.created_at).toLocaleDateString('ru-RU')}
-                        </p>
-                      </div>
-                    </div>
-                    {doc.raw_text && (
-                      <div className="mt-3 text-xs text-gray-600">
-                        <strong>OCR:</strong> {doc.raw_text.substring(0, 100)}...
-                      </div>
-                    )}
-                    <div className="mt-2 text-xs text-blue-600">
-                      Нажмите для просмотра
-                    </div>
-                  </div>
-                ))}
+                        {documents.map((doc, index) => (
+                          <div
+                            key={doc.id}
+                            className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer bg-white"
+                            onClick={() => onPhotoClick(doc, index)}
+                          >
+                            <div className="flex items-start space-x-3">
+                              <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <FileText className="h-6 w-6 text-blue-600" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">{doc.original_name}</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {new Date(doc.created_at).toLocaleDateString('ru-RU')}
+                                </p>
+                                {doc.raw_text && (
+                                  <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
+                                    <strong>OCR:</strong> {doc.raw_text.substring(0, 80)}...
+                                  </div>
+                                )}
+                                <div className="mt-2 text-xs text-blue-600 font-medium">
+                                  Нажмите для просмотра
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
               </div>
             </div>
           )}
