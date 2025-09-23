@@ -13,12 +13,10 @@ services:
         value: production
       - key: PORT
         value: 3000
-      - key: MONGO_URL
-        fromDatabase:
-          name: legal-practice-db
-          property: connectionString
-      - key: DB_NAME
-        value: legal_practice
+      - key: SUPABASE_URL
+        value: https://your-project.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: your_supabase_anon_key
       - key: GOOGLE_VISION_API_KEY
         sync: false
       - key: GOOGLE_CLOUD_KEY_PATH
