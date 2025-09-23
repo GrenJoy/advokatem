@@ -90,6 +90,7 @@ CREATE TABLE case_context_cache (
     context_data JSONB NOT NULL, -- полный контекст дела
     photos_summary TEXT, -- краткое описание фотографий
     ocr_summary TEXT, -- краткое описание OCR результатов
+    cache_name VARCHAR(255), -- имя кэша в Gemini API
     last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(case_id) -- Добавляем уникальный индекс для ON CONFLICT
 );
