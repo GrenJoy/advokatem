@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Plus, Search, FileText, Users, Calendar, Settings, AlertCircle, Upload, Clock, CheckCircle, MessageCircle, Send, X, Download } from 'lucide-react'
+import { Plus, Search, FileText, Users, Calendar, Settings, AlertCircle, Upload, Clock, CheckCircle, MessageCircle, Send, X, Download, Paperclip, Trash2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,6 +30,9 @@ export default function App() {
   const [showPhotoModal, setShowPhotoModal] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState(null)
   const [photoIndex, setPhotoIndex] = useState(0)
+  const [additionalFiles, setAdditionalFiles] = useState([])
+  const [showAdditionalFiles, setShowAdditionalFiles] = useState(false)
+  const [showAddFileDialog, setShowAddFileDialog] = useState(false)
 
   // Load cases on component mount
   useEffect(() => {
@@ -293,11 +296,73 @@ export default function App() {
     }
   }
 
-  // Load documents and chat when case is selected
+  // Load additional files for a case
+  const loadAdditionalFiles = async (caseId) => {
+    try {
+      const response = await fetch(`/api/optimized/cases/${caseId}/additional-files`)
+      if (response.ok) {
+        const files = await response.json()
+        setAdditionalFiles(files)
+      }
+    } catch (error) {
+      console.error('Error loading additional files:', error)
+    }
+  }
+
+  // Upload additional file
+  const uploadAdditionalFile = async (file, description, isImportant) => {
+    if (!selectedCase) return
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('caseId', selectedCase.id)
+      formData.append('description', description)
+      formData.append('isImportant', isImportant)
+
+      const response = await fetch('/api/optimized/additional-files/upload', {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (response.ok) {
+        toast.success('Файл загружен успешно')
+        loadAdditionalFiles(selectedCase.id)
+        setShowAddFileDialog(false)
+      } else {
+        toast.error('Ошибка загрузки файла')
+      }
+    } catch (error) {
+      console.error('Upload error:', error)
+      toast.error('Ошибка соединения с сервером')
+    }
+  }
+
+  // Delete additional file
+  const deleteAdditionalFile = async (fileId) => {
+    try {
+      const response = await fetch(`/api/optimized/additional-files/${fileId}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        toast.success('Файл удален')
+        loadAdditionalFiles(selectedCase.id)
+      } else {
+        toast.error('Ошибка удаления файла')
+      }
+    } catch (error) {
+      console.error('Delete error:', error)
+      toast.error('Ошибка соединения с сервером')
+    }
+  }
+
+  // Load documents, chat and additional files when case is selected
   useEffect(() => {
     if (selectedCase) {
       loadDocuments(selectedCase.id)
       loadChatHistory(selectedCase.id)
+      loadAdditionalFiles(selectedCase.id)
     }
   }, [selectedCase])
 
@@ -363,6 +428,15 @@ export default function App() {
             <div className="flex items-center space-x-4">
               {selectedCase && (
                 <>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => setShowAdditionalFiles(!showAdditionalFiles)}
+                    className="flex items-center space-x-1"
+                  >
+                    <Paperclip className="h-4 w-4" />
+                    <span>Файлы</span>
+                  </Button>
                   <Button 
                     variant="outline" 
                     size="sm"
@@ -480,6 +554,80 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* Additional Files Panel */}
+          {showAdditionalFiles && selectedCase && (
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-lg shadow-sm border h-[600px] flex flex-col">
+                <div className="p-4 border-b">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold">Дополнительные файлы</h3>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowAddFileDialog(true)}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Добавить
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="sm"
+                        onClick={() => setShowAdditionalFiles(false)}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-500">Дело: {selectedCase.title}</p>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {additionalFiles.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">
+                      <Paperclip className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>Нет дополнительных файлов</p>
+                      <p className="text-sm">Нажмите "Добавить" для загрузки</p>
+                    </div>
+                  ) : (
+                    additionalFiles.map((file) => (
+                      <div key={file.id} className="border rounded-lg p-3 hover:shadow-md transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center space-x-2">
+                              <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
+                              <p className="text-sm font-medium truncate">{file.original_name}</p>
+                              {file.is_important && (
+                                <Badge variant="destructive" className="text-xs">Важно</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(file.created_at).toLocaleDateString('ru-RU')}
+                            </p>
+                            {file.description && (
+                              <p className="text-xs text-gray-600 mt-1">{file.description}</p>
+                            )}
+                            <p className="text-xs text-gray-400">
+                              {(file.file_size / 1024).toFixed(1)} KB
+                            </p>
+                          </div>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => deleteAdditionalFile(file.id)}
+                            className="text-red-600 hover:text-red-700"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* AI Chat Panel */}
           {showChat && selectedCase && (
@@ -631,7 +779,92 @@ export default function App() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Add Additional File Dialog */}
+      <Dialog open={showAddFileDialog} onOpenChange={setShowAddFileDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Добавить файл</DialogTitle>
+            <DialogDescription>
+              Загрузите дополнительный файл к делу (Word, PDF, Excel и т.д.)
+            </DialogDescription>
+          </DialogHeader>
+          
+          <AddFileForm 
+            onSubmit={uploadAdditionalFile}
+            onCancel={() => setShowAddFileDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
     </div>
+  )
+}
+
+// Add File Form Component
+function AddFileForm({ onSubmit, onCancel }) {
+  const [file, setFile] = useState(null)
+  const [description, setDescription] = useState('')
+  const [isImportant, setIsImportant] = useState(false)
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (file) {
+      onSubmit(file, description, isImportant)
+      setFile(null)
+      setDescription('')
+      setIsImportant(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="file">Выберите файл</Label>
+        <Input
+          id="file"
+          type="file"
+          onChange={(e) => setFile(e.target.files[0])}
+          accept=".doc,.docx,.pdf,.xls,.xlsx,.txt,.rtf"
+          required
+        />
+        <p className="text-xs text-gray-500 mt-1">
+          Поддерживаются: Word, PDF, Excel, текстовые файлы
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="description">Описание (необязательно)</Label>
+        <Textarea
+          id="description"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Краткое описание файла..."
+          rows={3}
+        />
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <input
+          type="checkbox"
+          id="isImportant"
+          checked={isImportant}
+          onChange={(e) => setIsImportant(e.target.checked)}
+          className="rounded"
+        />
+        <Label htmlFor="isImportant" className="text-sm">
+          Отметить как важный файл
+        </Label>
+      </div>
+
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Отмена
+        </Button>
+        <Button type="submit" disabled={!file}>
+          Загрузить
+        </Button>
+      </div>
+    </form>
   )
 }
 

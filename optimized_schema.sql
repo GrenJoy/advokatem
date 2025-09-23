@@ -110,6 +110,24 @@ CREATE INDEX idx_ai_chat_messages_case_id ON ai_chat_messages(case_id);
 CREATE INDEX idx_ai_chat_messages_created_at ON ai_chat_messages(session_id, created_at DESC);
 CREATE INDEX idx_case_context_cache_case_id ON case_context_cache(case_id);
 
+-- Table for Additional Files (Word, PDF, etc.)
+CREATE TABLE case_additional_files (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    case_id UUID NOT NULL REFERENCES cases(id) ON DELETE CASCADE,
+    file_name VARCHAR(255) NOT NULL,
+    original_name VARCHAR(255) NOT NULL,
+    file_type VARCHAR(100),
+    file_size BIGINT,
+    file_path TEXT,
+    description TEXT,
+    is_important BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Index for additional files
+CREATE INDEX idx_case_additional_files_case_id ON case_additional_files(case_id);
+
 -- Function to automatically update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
@@ -138,6 +156,10 @@ CREATE TRIGGER update_photo_comments_updated_at
 
 CREATE TRIGGER update_ai_chat_sessions_updated_at 
     BEFORE UPDATE ON ai_chat_sessions 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_case_additional_files_updated_at 
+    BEFORE UPDATE ON case_additional_files 
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Function to get or create active session

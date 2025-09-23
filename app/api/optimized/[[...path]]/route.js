@@ -635,6 +635,107 @@ async function handleRoute(request, { params }) {
       }))
     }
 
+    // Additional files endpoints
+    if (route === '/additional-files/upload' && method === 'POST') {
+      try {
+        const formData = await request.formData()
+        const file = formData.get('file')
+        const caseId = formData.get('caseId')
+        const description = formData.get('description') || ''
+        const isImportant = formData.get('isImportant') === 'true'
+        
+        if (!file || !caseId) {
+          return handleCORS(NextResponse.json(
+            { error: "File and caseId are required" }, 
+            { status: 400 }
+          ))
+        }
+
+        const bytes = await file.arrayBuffer()
+        const buffer = Buffer.from(bytes)
+
+        const fileId = uuidv4()
+        const fileName = `${fileId}-${file.name}`
+
+        const fileDoc = {
+          id: fileId,
+          case_id: caseId,
+          file_name: fileName,
+          original_name: file.name,
+          file_type: file.type,
+          file_size: buffer.length,
+          file_path: `/uploads/additional/${fileName}`,
+          description: description,
+          is_important: isImportant,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }
+
+        const result = await db.query(`
+          INSERT INTO case_additional_files (id, case_id, file_name, original_name, file_type, file_size, file_path, description, is_important, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+          RETURNING *
+        `, [
+          fileDoc.id, fileDoc.case_id, fileDoc.file_name, fileDoc.original_name,
+          fileDoc.file_type, fileDoc.file_size, fileDoc.file_path, fileDoc.description,
+          fileDoc.is_important, fileDoc.created_at, fileDoc.updated_at
+        ])
+
+        // Invalidate context cache
+        await db.query(`
+          DELETE FROM case_context_cache WHERE case_id = $1
+        `, [caseId])
+
+        return handleCORS(NextResponse.json({ 
+          success: true, 
+          fileId: fileId,
+          message: "Additional file uploaded successfully" 
+        }))
+
+      } catch (error) {
+        console.error('Additional file upload error:', error)
+        return handleCORS(NextResponse.json(
+          { error: "Upload failed: " + error.message }, 
+          { status: 500 }
+        ))
+      }
+    }
+
+    // Get additional files for a case
+    if (route.match(/^\/cases\/[^\/]+\/additional-files$/) && method === 'GET') {
+      const caseId = route.split('/')[2]
+      
+      const result = await db.query(`
+        SELECT * FROM case_additional_files 
+        WHERE case_id = $1 
+        ORDER BY created_at DESC
+      `, [caseId])
+      
+      return handleCORS(NextResponse.json(result.rows))
+    }
+
+    // Delete additional file
+    if (route.match(/^\/additional-files\/[^\/]+$/) && method === 'DELETE') {
+      const fileId = route.split('/')[2]
+      
+      const result = await db.query(`
+        DELETE FROM case_additional_files 
+        WHERE id = $1 
+        RETURNING case_id
+      `, [fileId])
+      
+      if (result.rows.length === 0) {
+        return handleCORS(NextResponse.json({ error: "File not found" }, { status: 404 }))
+      }
+      
+      // Invalidate context cache
+      await db.query(`
+        DELETE FROM case_context_cache WHERE case_id = $1
+      `, [result.rows[0].case_id])
+      
+      return handleCORS(NextResponse.json({ success: true }))
+    }
+
     // Generate PDF with all OCR transcriptions for a case
     if (route.match(/^\/cases\/[^\/]+\/pdf$/) && method === 'GET') {
       const caseId = route.split('/')[2]
