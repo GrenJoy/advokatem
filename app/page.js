@@ -773,10 +773,10 @@ export default function App() {
 
               {/* Photo Modal */}
               <Dialog open={showPhotoModal} onOpenChange={setShowPhotoModal}>
-                <DialogContent className="max-w-6xl max-h-[95vh] p-0 overflow-hidden">
-                  <div className="flex flex-col h-full">
-                    <div className="flex justify-between items-center p-4 border-b bg-white sticky top-0 z-10">
-                      <h3 className="text-lg font-semibold truncate">
+                <DialogContent className="max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-lg font-semibold">
                         {selectedPhoto?.original_name} ({photoIndex + 1} из {documents.length})
                       </h3>
                       <div className="flex items-center space-x-2">
@@ -799,68 +799,65 @@ export default function App() {
                       </div>
                     </div>
             
-                    <div className="flex-1 overflow-y-auto">
-                      <div className="p-6">
-                        <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
-                          <div className="text-center">
-                            <div className="w-32 h-32 mx-auto mb-4 bg-gray-200 rounded-lg flex items-center justify-center">
-                              <FileText className="h-16 w-16 text-gray-400" />
-                            </div>
-                            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                              {selectedPhoto?.original_name}
-                            </h3>
-                            <p className="text-sm text-gray-500">
-                              Файл загружен: {selectedPhoto && new Date(selectedPhoto.created_at).toLocaleDateString('ru-RU')}
-                            </p>
-                            <p className="text-sm text-gray-500">
-                              Размер: {selectedPhoto && (selectedPhoto.file_size / 1024).toFixed(1)} KB
-                            </p>
-                          </div>
+                    <div className="bg-white rounded-lg shadow-lg p-6">
+                      <div className="text-center mb-4">
+                        <div className="w-24 h-24 mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center">
+                          <FileText className="h-12 w-12 text-gray-400" />
                         </div>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                          {selectedPhoto?.original_name}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          Загружен: {selectedPhoto && new Date(selectedPhoto.created_at).toLocaleDateString('ru-RU')}
+                        </p>
+                        <p className="text-sm text-gray-500">
+                          Размер: {selectedPhoto && (selectedPhoto.file_size / 1024).toFixed(1)} KB
+                        </p>
+                      </div>
               
-                        {/* Navigation buttons */}
-                        {documents.length > 1 && (
-                          <div className="flex justify-between mt-4">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={prevPhoto}
-                              className="flex items-center space-x-1"
-                            >
-                              ← Предыдущий
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={nextPhoto}
-                              className="flex items-center space-x-1"
-                            >
-                              Следующий →
-                            </Button>
-                          </div>
-                        )}
+                      {/* Navigation buttons */}
+                      {documents.length > 1 && (
+                        <div className="flex justify-between mt-4">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={prevPhoto}
+                            className="flex items-center space-x-1"
+                          >
+                            ← Предыдущий
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={nextPhoto}
+                            className="flex items-center space-x-1"
+                          >
+                            Следующий →
+                          </Button>
+                        </div>
+                      )}
+                    </div>
 
-                        {/* OCR Text Display */}
-                        {selectedPhoto?.raw_text && (
-                          <div className="mt-6">
-                            <div className="flex items-center mb-4">
-                              <FileText className="h-5 w-5 text-blue-600 mr-2" />
-                              <h4 className="text-lg font-semibold text-gray-800">Распознанный текст</h4>
-                            </div>
-                            <div className="bg-white rounded-lg p-4 shadow-sm border">
-                              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                                {selectedPhoto.raw_text}
-                              </p>
-                            </div>
-                            {selectedPhoto.confidence_score && (
-                              <div className="mt-3 text-xs text-gray-500">
-                                Уверенность OCR: {(selectedPhoto.confidence_score * 100).toFixed(1)}%
-                              </div>
-                            )}
+                    {/* OCR Text Display */}
+                    {selectedPhoto?.raw_text && (
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <div className="flex items-center mb-3">
+                          <FileText className="h-5 w-5 text-blue-600 mr-2" />
+                          <h4 className="text-lg font-semibold text-gray-800">Распознанный текст</h4>
+                        </div>
+                        <div className="bg-white rounded-lg p-4 border">
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                            {selectedPhoto.raw_text}
+                          </p>
+                        </div>
+                        {selectedPhoto.confidence_score && (
+                          <div className="mt-3 text-xs text-gray-500">
+                            Уверенность OCR: {(selectedPhoto.confidence_score * 100).toFixed(1)}%
                           </div>
                         )}
                       </div>
-                    </div>
+                    )}
+                  </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1183,7 +1180,7 @@ function CaseDetails({ case_, documents, uploadProps, uploadProgress, ocrProgres
                                 </p>
                                 {doc.raw_text && (
                                   <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
-                                    <strong>OCR:</strong> {doc.raw_text.substring(0, 80)}...
+                                    <strong>OCR:</strong> {doc.raw_text.substring(0, 100)}...
                                   </div>
                                 )}
                                 <div className="mt-2 text-xs text-blue-600 font-medium">
