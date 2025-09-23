@@ -261,8 +261,16 @@ async function processAIChat(message, caseId, sessionId, db) {
     - Приоритет: ${context.case.priority}
     - Номер дела: ${context.case.case_number}
 
-    ДОКУМЕНТЫ:
-    ${documentSummary}
+    ДОКУМЕНТЫ (${context.photos.length} шт.):
+    ${context.photos.map((photo, index) => `
+    ${index + 1}. ${photo.original_name}
+       - Статус OCR: ${photo.raw_text ? 'Обработан' : 'Не обработан'}
+       ${photo.raw_text ? `- Текст: ${photo.raw_text.substring(0, 200)}...` : ''}
+       ${photo.extracted_dates && photo.extracted_dates.length > 0 ? `- Даты: ${photo.extracted_dates.join(', ')}` : ''}
+       ${photo.extracted_numbers && photo.extracted_numbers.length > 0 ? `- Номера: ${photo.extracted_numbers.join(', ')}` : ''}
+       ${photo.extracted_names && photo.extracted_names.length > 0 ? `- Имена: ${photo.extracted_names.join(', ')}` : ''}
+       ${photo.extracted_amounts && photo.extracted_amounts.length > 0 ? `- Суммы: ${photo.extracted_amounts.join(', ')}` : ''}
+    `).join('')}
 
     ИЗВЛЕЧЕННЫЕ ДАННЫЕ:
     - Даты: ${context.summary.extracted_dates.join(', ') || 'Не найдены'}
@@ -284,8 +292,18 @@ async function processAIChat(message, caseId, sessionId, db) {
     Будь кратким, но информативным. Если нужно больше деталей, спроси уточняющие вопросы.
     `
 
+    // Debug: Log context information
+    console.log(`AI Chat Context for case ${caseId}:`)
+    console.log(`- Photos count: ${context.photos.length}`)
+    console.log(`- Processed photos: ${context.photos.filter(p => p.raw_text).length}`)
+    console.log(`- Extracted dates: ${context.summary.extracted_dates.length}`)
+    console.log(`- Extracted names: ${context.summary.extracted_names.length}`)
+
     // Generate response using standard API
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    const model = genAI.getGenerativeModel({ 
+      model: "gemini-1.5-flash",
+      systemInstruction: "Ты - профессиональный ИИ-ассистент адвоката. Ты помогаешь анализировать дела, документы и давать юридические советы. Используй всю доступную информацию о деле, включая загруженные документы и их OCR результаты. Будь конкретным и полезным в своих ответах."
+    })
     
     const result = await model.generateContent(staticContext + '\n\n' + dynamicPrompt)
     const response = await result.response
@@ -379,6 +397,10 @@ async function handleRoute(request, { params }) {
     // Get case by ID with full context
     if (route.match(/^\/cases\/[^\/]+$/) && method === 'GET') {
       const caseId = route.split('/')[2]
+      
+      if (!caseId) {
+        return handleCORS(NextResponse.json({ error: 'Case ID is required' }, { status: 400 }))
+      }
       
       try {
         const context = await getCaseContext(caseId, db)

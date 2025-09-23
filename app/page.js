@@ -771,99 +771,96 @@ export default function App() {
         </div>
       </div>
 
-      {/* Photo Modal */}
-      <Dialog open={showPhotoModal} onOpenChange={setShowPhotoModal}>
-        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
-          <div className="relative">
-            <div className="flex justify-between items-center p-4 border-b">
-              <h3 className="text-lg font-semibold">
-                {selectedPhoto?.original_name} ({photoIndex + 1} из {documents.length})
-              </h3>
-              <div className="flex items-center space-x-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={downloadPDF}
-                  className="flex items-center space-x-1"
-                >
-                  <Download className="h-4 w-4" />
-                  <span>Скачать PDF</span>
-                </Button>
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setShowPhotoModal(false)}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+              {/* Photo Modal */}
+              <Dialog open={showPhotoModal} onOpenChange={setShowPhotoModal}>
+                <DialogContent className="max-w-6xl max-h-[95vh] p-0 overflow-hidden">
+                  <div className="flex flex-col h-full">
+                    <div className="flex justify-between items-center p-4 border-b bg-white sticky top-0 z-10">
+                      <h3 className="text-lg font-semibold truncate">
+                        {selectedPhoto?.original_name} ({photoIndex + 1} из {documents.length})
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={downloadPDF}
+                          className="flex items-center space-x-1"
+                        >
+                          <Download className="h-4 w-4" />
+                          <span>Скачать PDF</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setShowPhotoModal(false)}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
             
-                    <div className="relative bg-gray-100 flex items-center justify-center min-h-[500px] p-4">
-                      {selectedPhoto && (
-                        <div className="text-center">
-                          <div className="bg-white rounded-lg shadow-lg p-8 mb-4">
+                    <div className="flex-1 overflow-y-auto">
+                      <div className="p-6">
+                        <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
+                          <div className="text-center">
                             <div className="w-32 h-32 mx-auto mb-4 bg-gray-200 rounded-lg flex items-center justify-center">
                               <FileText className="h-16 w-16 text-gray-400" />
                             </div>
                             <h3 className="text-lg font-semibold text-gray-800 mb-2">
-                              {selectedPhoto.original_name}
+                              {selectedPhoto?.original_name}
                             </h3>
                             <p className="text-sm text-gray-500">
-                              Файл загружен: {new Date(selectedPhoto.created_at).toLocaleDateString('ru-RU')}
+                              Файл загружен: {selectedPhoto && new Date(selectedPhoto.created_at).toLocaleDateString('ru-RU')}
                             </p>
                             <p className="text-sm text-gray-500">
-                              Размер: {(selectedPhoto.file_size / 1024).toFixed(1)} KB
+                              Размер: {selectedPhoto && (selectedPhoto.file_size / 1024).toFixed(1)} KB
                             </p>
                           </div>
-                          <p className="text-sm text-gray-600">
-                            В реальном приложении здесь будет отображаться изображение
-                          </p>
                         </div>
-                      )}
               
-              {/* Navigation buttons */}
-              {documents.length > 1 && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="absolute left-4 top-1/2 transform -translate-y-1/2"
-                    onClick={prevPhoto}
-                  >
-                    ←
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    className="absolute right-4 top-1/2 transform -translate-y-1/2"
-                    onClick={nextPhoto}
-                  >
-                    →
-                  </Button>
-                </>
-              )}
-            </div>
-            
-                    {/* OCR Text Display */}
-                    {selectedPhoto?.raw_text && (
-                      <div className="p-6 border-t bg-gray-50">
-                        <div className="flex items-center mb-4">
-                          <FileText className="h-5 w-5 text-blue-600 mr-2" />
-                          <h4 className="text-lg font-semibold text-gray-800">Распознанный текст</h4>
-                        </div>
-                        <div className="bg-white rounded-lg p-4 shadow-sm border max-h-60 overflow-y-auto">
-                          <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
-                            {selectedPhoto.raw_text}
-                          </p>
-                        </div>
-                        {selectedPhoto.confidence_score && (
-                          <div className="mt-3 text-xs text-gray-500">
-                            Уверенность OCR: {(selectedPhoto.confidence_score * 100).toFixed(1)}%
+                        {/* Navigation buttons */}
+                        {documents.length > 1 && (
+                          <div className="flex justify-between mt-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={prevPhoto}
+                              className="flex items-center space-x-1"
+                            >
+                              ← Предыдущий
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={nextPhoto}
+                              className="flex items-center space-x-1"
+                            >
+                              Следующий →
+                            </Button>
+                          </div>
+                        )}
+
+                        {/* OCR Text Display */}
+                        {selectedPhoto?.raw_text && (
+                          <div className="mt-6">
+                            <div className="flex items-center mb-4">
+                              <FileText className="h-5 w-5 text-blue-600 mr-2" />
+                              <h4 className="text-lg font-semibold text-gray-800">Распознанный текст</h4>
+                            </div>
+                            <div className="bg-white rounded-lg p-4 shadow-sm border">
+                              <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                                {selectedPhoto.raw_text}
+                              </p>
+                            </div>
+                            {selectedPhoto.confidence_score && (
+                              <div className="mt-3 text-xs text-gray-500">
+                                Уверенность OCR: {(selectedPhoto.confidence_score * 100).toFixed(1)}%
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
-                    )}
+                    </div>
           </div>
         </DialogContent>
       </Dialog>
