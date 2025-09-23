@@ -858,7 +858,6 @@ export default function App() {
                       </div>
                     )}
                   </div>
-          </div>
         </DialogContent>
       </Dialog>
 
