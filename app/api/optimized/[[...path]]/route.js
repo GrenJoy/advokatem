@@ -90,6 +90,10 @@ async function processOCR(imageBuffer) {
 
 // Get or create active session for case
 async function getOrCreateActiveSession(caseId, db) {
+  if (!caseId) {
+    throw new Error('Case ID is required for session creation')
+  }
+  
   const result = await db.query(`
     SELECT get_or_create_active_session($1) as session_id
   `, [caseId])
@@ -934,10 +938,10 @@ async function processPhotoOCR(photoId, caseId, buffer, db) {
         WHERE photo_id = $8
       `, [
         ocrResult.text, 
-        JSON.stringify(extractedDates), 
-        JSON.stringify(extractedNumbers),
-        JSON.stringify(extractedNames),
-        JSON.stringify(extractedAmounts),
+        extractedDates, 
+        extractedNumbers,
+        extractedNames,
+        extractedAmounts,
         ocrResult.confidence,
         new Date().toISOString(),
         photoId
