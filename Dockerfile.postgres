@@ -1,0 +1,15 @@
+# Dockerfile for PostgreSQL with Legal Practice schema
+FROM postgres:15-alpine
+
+# Set environment variables
+ENV POSTGRES_DB=legal_practice
+ENV POSTGRES_USER=admin
+ENV POSTGRES_PASSWORD=admin123
+
+# Copy schema file
+COPY database_schema.sql /docker-entrypoint-initdb.d/
+
+# Expose port
+EXPOSE 5432
+
+# The postgres image will automatically run the SQL files in /docker-entrypoint-initdb.d/

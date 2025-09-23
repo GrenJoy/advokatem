@@ -1,0 +1,57 @@
+services:
+  # Web Service
+  - type: web
+    name: legal-practice-app
+    env: node
+    plan: starter
+    buildCommand: |
+      npm install
+      npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: MONGO_URL
+        fromDatabase:
+          name: legal-practice-db
+          property: connectionString
+      - key: DB_NAME
+        value: legal_practice
+      - key: GOOGLE_VISION_API_KEY
+        sync: false
+      - key: GOOGLE_CLOUD_KEY_PATH
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://legal-practice-app.onrender.com
+
+  # Database Service (MongoDB)
+  - type: pserv
+    name: legal-practice-db
+    plan: starter
+    disk:
+      name: legal-practice-db-disk
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: MONGO_INITDB_ROOT_USERNAME
+        value: admin
+      - key: MONGO_INITDB_ROOT_PASSWORD
+        generateValue: true
+      - key: MONGO_INITDB_DATABASE
+        value: legal_practice
+
+  # Alternative: PostgreSQL Database (if you want to use PostgreSQL instead of MongoDB)
+  - type: pserv
+    name: legal-practice-postgres
+    plan: starter
+    env: docker
+    dockerfilePath: ./Dockerfile.postgres
+    envVars:
+      - key: POSTGRES_DB
+        value: legal_practice
+      - key: POSTGRES_USER
+        value: admin
+      - key: POSTGRES_PASSWORD
+        generateValue: true
