@@ -1,4 +1,4 @@
-import { GoogleGenAI } from '@google/genai'
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -22,7 +22,7 @@ async function connectToPostgres() {
 }
 
 // Gemini AI connection
-const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || 'dummy-key' })
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy-key')
 
 // Check if Gemini API key is valid
 if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'dummy-key') {
@@ -62,20 +62,20 @@ async function processOCR(imageBuffer) {
     Если это документ, извлеки все даты, номера документов, суммы денег, имена людей и другую важную информацию.
     `
     
-    const result = await genAI.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: [
-        {
-          inlineData: {
-            data: base64Image,
-            mimeType: "image/jpeg"
-          }
-        },
-        { text: prompt }
-      ]
-    })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
     
-    const text = result.text
+    const result = await model.generateContent([
+      {
+        inlineData: {
+          data: base64Image,
+          mimeType: "image/jpeg"
+        }
+      },
+      prompt
+    ])
+    
+    const response = await result.response
+    const text = response.text()
     
     return {
       success: true,
@@ -280,56 +280,12 @@ async function processAIChat(message, caseId, sessionId, db) {
     Будь кратким, но информативным. Если нужно больше деталей, спроси уточняющие вопросы.
     `
 
-    // Try to use cached context if available
-    let cacheName = null
-    try {
-      // Check if we have a cached context for this case
-      const cacheResult = await db.query(`
-        SELECT cache_name FROM case_context_cache 
-        WHERE case_id = $1 AND cache_name IS NOT NULL
-        ORDER BY last_updated DESC LIMIT 1
-      `, [caseId])
-
-      if (cacheResult.rows.length > 0) {
-        cacheName = cacheResult.rows[0].cache_name
-      } else {
-        // Create new cache for static context
-        const cache = await genAI.caches.create({
-          model: "gemini-2.5-flash",
-          config: {
-            contents: staticContext,
-            systemInstruction: "Ты - ИИ-ассистент адвоката. Анализируй дела и документы профессионально."
-          }
-        })
-        cacheName = cache.name
-
-        // Store cache name in database
-        await db.query(`
-          UPDATE case_context_cache 
-          SET cache_name = $1 
-          WHERE case_id = $2
-        `, [cacheName, caseId])
-      }
-    } catch (cacheError) {
-      console.warn('Cache creation failed, using regular generation:', cacheError.message)
-    }
-
-    // Generate response with or without cache
-    let result
-    if (cacheName) {
-      result = await genAI.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: dynamicPrompt,
-        config: { cachedContent: cacheName }
-      })
-    } else {
-      result = await genAI.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: staticContext + '\n\n' + dynamicPrompt
-      })
-    }
+    // Generate response using standard API
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
     
-    const aiResponse = result.text
+    const result = await model.generateContent(staticContext + '\n\n' + dynamicPrompt)
+    const response = await result.response
+    const aiResponse = response.text()
     
     return {
       success: true,
@@ -1014,31 +970,13 @@ async function processPhotoOCR(photoId, caseId, buffer, db) {
 // Cache management functions
 async function clearCaseCache(caseId, db) {
   try {
-    // Get cache name from database
-    const cacheResult = await db.query(`
-      SELECT cache_name FROM case_context_cache 
-      WHERE case_id = $1 AND cache_name IS NOT NULL
-    `, [caseId])
-
-    if (cacheResult.rows.length > 0) {
-      const cacheName = cacheResult.rows[0].cache_name
-      
-      // Delete cache from Gemini API
-      try {
-        await genAI.caches.delete({ name: cacheName })
-        console.log(`Deleted cache: ${cacheName}`)
-      } catch (error) {
-        console.warn(`Failed to delete cache ${cacheName}:`, error.message)
-      }
-    }
-
     // Clear cache from database
     await db.query(`
-      UPDATE case_context_cache 
-      SET cache_name = NULL 
+      DELETE FROM case_context_cache 
       WHERE case_id = $1
     `, [caseId])
-
+    
+    console.log(`Cleared cache for case: ${caseId}`)
   } catch (error) {
     console.error('Cache cleanup error:', error)
   }
