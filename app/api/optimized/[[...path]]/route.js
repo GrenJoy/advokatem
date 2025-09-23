@@ -62,7 +62,7 @@ async function processOCR(imageBuffer) {
     Если это документ, извлеки все даты, номера документов, суммы денег, имена людей и другую важную информацию.
     `
     
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
     
     const result = await model.generateContent([
       {
@@ -281,7 +281,7 @@ async function processAIChat(message, caseId, sessionId, db) {
     `
 
     // Generate response using standard API
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
     
     const result = await model.generateContent(staticContext + '\n\n' + dynamicPrompt)
     const response = await result.response
@@ -984,6 +984,8 @@ async function clearCaseCache(caseId, db) {
 
 // Helper functions for extracting structured data
 function extractDatesFromText(text) {
+  if (!text) return []
+  
   const dateRegexes = [
     /(\d{1,2})\.(\d{1,2})\.(\d{4})/g,
     /(\d{1,2})\/(\d{1,2})\/(\d{4})/g,
@@ -1002,11 +1004,13 @@ function extractDatesFromText(text) {
 }
 
 function extractNumbersFromText(text) {
+  if (!text) return []
+  
   const numberRegexes = [
     /№\s*(\d+(?:[\/\-]\d+)*)/g,
     /дело\s*№?\s*(\d+(?:[\/\-]\d+)*)/gi
   ]
-  
+
   const numbers = []
   numberRegexes.forEach(regex => {
     let match
@@ -1014,11 +1018,13 @@ function extractNumbersFromText(text) {
       numbers.push(match[0])
     }
   })
-  
+
   return [...new Set(numbers)]
 }
 
 function extractNamesFromText(text) {
+  if (!text) return []
+  
   const nameRegex = /[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+\s+[А-ЯЁ][а-яё]+/g
   const names = []
   let match
@@ -1029,6 +1035,8 @@ function extractNamesFromText(text) {
 }
 
 function extractAmountsFromText(text) {
+  if (!text) return []
+  
   const amountRegex = /(\d+(?:\s\d{3})*(?:[,\.]\d{2})?)\s*(?:руб|₽|рублей)/gi
   const amounts = []
   let match
