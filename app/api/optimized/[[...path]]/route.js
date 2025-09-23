@@ -22,7 +22,12 @@ async function connectToPostgres() {
 }
 
 // Gemini AI connection
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || 'dummy-key')
+
+// Check if Gemini API key is valid
+if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'dummy-key') {
+  console.warn('⚠️ GEMINI_API_KEY not set! OCR and AI chat will not work.')
+}
 
 // Helper function to handle CORS
 function handleCORS(response) {
@@ -41,6 +46,14 @@ export async function OPTIONS() {
 // OCR Processing with Gemini 2.5 Flash
 async function processOCR(imageBuffer) {
   try {
+    // Check if API key is valid
+    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === 'dummy-key') {
+      return { 
+        success: false, 
+        error: 'GEMINI_API_KEY not configured. Please set a valid API key in environment variables.' 
+      }
+    }
+
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite" })
     
     const base64Image = imageBuffer.toString('base64')
@@ -86,6 +99,10 @@ async function getOrCreateActiveSession(caseId, db) {
 
 // Get case context (cached or fresh)
 async function getCaseContext(caseId, db) {
+  if (!caseId) {
+    throw new Error('Case ID is required')
+  }
+  
   // Try to get cached context first
   const cacheResult = await db.query(`
     SELECT context_data, last_updated 
