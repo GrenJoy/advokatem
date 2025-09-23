@@ -141,13 +141,14 @@ async function getCaseContext(caseId, db) {
   }
   
   // Cache the context
+  const cacheId = uuidv4()
   await db.query(`
     INSERT INTO case_context_cache (id, case_id, context_data, last_updated)
     VALUES ($1, $2, $3, $4)
     ON CONFLICT (case_id) DO UPDATE SET 
       context_data = $3, 
       last_updated = $4
-  `, [uuidv4(), caseId, JSON.stringify(context), new Date().toISOString()])
+  `, [cacheId, caseId, JSON.stringify(context), new Date().toISOString()])
   
   return context
 }
@@ -873,11 +874,23 @@ async function processPhotoOCR(photoId, caseId, buffer, db) {
   try {
     console.log(`Starting OCR processing for photo ${photoId} with Gemini 2.5 Flash`)
     
-    await db.query(`
-      INSERT INTO photo_ocr_results (id, photo_id, case_id, processing_status, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT (photo_id) DO UPDATE SET processing_status = $4, updated_at = $6
-    `, [uuidv4(), photoId, caseId, 'processing', new Date().toISOString(), new Date().toISOString()])
+    // Check if OCR result already exists
+    const existingResult = await db.query(`
+      SELECT id FROM photo_ocr_results WHERE photo_id = $1
+    `, [photoId])
+    
+    if (existingResult.rows.length === 0) {
+      await db.query(`
+        INSERT INTO photo_ocr_results (id, photo_id, case_id, processing_status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [uuidv4(), photoId, caseId, 'processing', new Date().toISOString(), new Date().toISOString()])
+    } else {
+      await db.query(`
+        UPDATE photo_ocr_results 
+        SET processing_status = $1, updated_at = $2
+        WHERE photo_id = $3
+      `, ['processing', new Date().toISOString(), photoId])
+    }
     
     const ocrResult = await processOCR(buffer)
 

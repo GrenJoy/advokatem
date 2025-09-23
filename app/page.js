@@ -425,7 +425,7 @@ export default function App() {
               <FileText className="h-8 w-8 text-blue-600 mr-3" />
               <h1 className="text-2xl font-bold text-gray-900">Адвокатская Практика</h1>
             </div>
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
               {selectedCase && (
                 <>
                   <Button 
@@ -435,7 +435,7 @@ export default function App() {
                     className="flex items-center space-x-1"
                   >
                     <Paperclip className="h-4 w-4" />
-                    <span>Файлы</span>
+                    <span className="hidden sm:inline">Файлы</span>
                   </Button>
                   <Button 
                     variant="outline" 
@@ -444,21 +444,22 @@ export default function App() {
                     className="flex items-center space-x-1"
                   >
                     <Download className="h-4 w-4" />
-                    <span>PDF</span>
+                    <span className="hidden sm:inline">PDF</span>
                   </Button>
                   <Button 
                     variant="outline" 
                     size="sm"
                     onClick={() => setShowChat(!showChat)}
+                    className="flex items-center space-x-1"
                   >
-                    <MessageCircle className="h-4 w-4 mr-2" />
-                    ИИ-чат
+                    <MessageCircle className="h-4 w-4" />
+                    <span className="hidden sm:inline">ИИ-чат</span>
                   </Button>
                 </>
               )}
-              <Button variant="outline" size="sm">
-                <Settings className="h-4 w-4 mr-2" />
-                Настройки
+              <Button variant="outline" size="sm" className="flex items-center space-x-1">
+                <Settings className="h-4 w-4" />
+                <span className="hidden sm:inline">Настройки</span>
               </Button>
             </div>
           </div>
@@ -538,14 +539,52 @@ export default function App() {
           {/* Main Content */}
           <div className="lg:col-span-2">
             {selectedCase ? (
-              <CaseDetails 
-                case_={selectedCase}
-                documents={documents}
-                uploadProps={{ getRootProps, getInputProps, isDragActive }}
-                uploadProgress={uploadProgress}
-                ocrProgress={ocrProgress}
-                onPhotoClick={openPhotoModal}
-              />
+              <div className="space-y-4">
+                {/* Action Buttons for Selected Case */}
+                <div className="bg-white rounded-lg shadow-sm border p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Действия с делом</h3>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowAdditionalFiles(!showAdditionalFiles)}
+                        className="flex items-center space-x-1"
+                      >
+                        <Paperclip className="h-4 w-4" />
+                        <span>Доп. файлы</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={downloadPDF}
+                        className="flex items-center space-x-1"
+                      >
+                        <Download className="h-4 w-4" />
+                        <span>Скачать PDF</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowChat(!showChat)}
+                        className="flex items-center space-x-1"
+                      >
+                        <MessageCircle className="h-4 w-4" />
+                        <span>ИИ-чат</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                
+                <CaseDetails 
+                  case_={selectedCase}
+                  documents={documents}
+                  uploadProps={{ getRootProps, getInputProps, isDragActive }}
+                  uploadProgress={uploadProgress}
+                  ocrProgress={ocrProgress}
+                  onPhotoClick={openPhotoModal}
+                />
+              </div>
             ) : (
               <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
                 <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />

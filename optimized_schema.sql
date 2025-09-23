@@ -29,7 +29,8 @@ CREATE TABLE case_photos (
     file_path TEXT,
     display_order INTEGER DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(file_name) -- Добавляем уникальный индекс для ON CONFLICT
 );
 
 -- OCR results table (результаты распознавания текста)
@@ -89,7 +90,8 @@ CREATE TABLE case_context_cache (
     context_data JSONB NOT NULL, -- полный контекст дела
     photos_summary TEXT, -- краткое описание фотографий
     ocr_summary TEXT, -- краткое описание OCR результатов
-    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    last_updated TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(case_id) -- Добавляем уникальный индекс для ON CONFLICT
 );
 
 -- Indexes for better performance
