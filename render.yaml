@@ -13,10 +13,8 @@ services:
         value: production
       - key: PORT
         value: 3000
-      - key: SUPABASE_URL
-        value: https://your-project.supabase.co
-      - key: SUPABASE_ANON_KEY
-        value: your_supabase_anon_key
+      - key: POSTGRES_URL
+        value: postgresql://postgres.fulczneorzmbeajdnrtt:[YOUR-PASSWORD]@aws-1-eu-central-1.pooler.supabase.com:5432/postgres
       - key: GOOGLE_VISION_API_KEY
         sync: false
       - key: GOOGLE_CLOUD_KEY_PATH

@@ -32,7 +32,7 @@ export default function App() {
   const loadCases = async () => {
     try {
       setIsLoading(true)
-      const response = await fetch('/api/cases')
+      const response = await fetch('/api/postgres/cases')
       if (response.ok) {
         const data = await response.json()
         setCases(data)
@@ -49,7 +49,7 @@ export default function App() {
 
   const createCase = async (caseData) => {
     try {
-      const response = await fetch('/api/cases', {
+      const response = await fetch('/api/postgres/cases', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(caseData)
@@ -103,7 +103,7 @@ export default function App() {
       formData.append('caseId', selectedCase.id)
       
       // Upload with progress
-      const response = await fetch('/api/documents/upload', {
+      const response = await fetch('/api/postgres/documents/upload', {
         method: 'POST',
         body: formData,
       })
@@ -135,7 +135,7 @@ export default function App() {
 
   const pollOcrStatus = async (documentId, fileId) => {
     try {
-      const response = await fetch(`/api/documents/${documentId}/ocr-status`)
+      const response = await fetch(`/api/postgres/documents/${documentId}/ocr-status`)
       
       if (response.ok) {
         const status = await response.json()
@@ -170,7 +170,7 @@ export default function App() {
 
   const loadDocuments = async (caseId) => {
     try {
-      const response = await fetch(`/api/cases/${caseId}/documents`)
+      const response = await fetch(`/api/postgres/cases/${caseId}/documents`)
       if (response.ok) {
         const docs = await response.json()
         setDocuments(docs)
