@@ -394,21 +394,130 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(result.rows[0]))
     }
 
-    // Get case by ID with full context
-    if (route.match(/^\/cases\/[^\/]+$/) && method === 'GET') {
-      const caseId = route.split('/')[2]
-      
-      if (!caseId) {
-        return handleCORS(NextResponse.json({ error: 'Case ID is required' }, { status: 400 }))
-      }
-      
-      try {
-        const context = await getCaseContext(caseId, db)
-        return handleCORS(NextResponse.json(context))
-      } catch (error) {
-        return handleCORS(NextResponse.json({ error: error.message }, { status: 404 }))
-      }
-    }
+          // Get case by ID with full context
+          if (route.match(/^\/cases\/[^\/]+$/) && method === 'GET') {
+            const caseId = route.split('/')[2]
+            
+            if (!caseId) {
+              return handleCORS(NextResponse.json({ error: 'Case ID is required' }, { status: 400 }))
+            }
+            
+            try {
+              const context = await getCaseContext(caseId, db)
+              return handleCORS(NextResponse.json(context))
+            } catch (error) {
+              return handleCORS(NextResponse.json({ error: error.message }, { status: 404 }))
+            }
+          }
+
+          // Update case
+          if (route.match(/^\/cases\/[^\/]+$/) && method === 'PUT') {
+            const caseId = route.split('/')[2]
+            const body = await request.json()
+            
+            if (!caseId) {
+              return handleCORS(NextResponse.json({ error: 'Case ID is required' }, { status: 400 }))
+            }
+
+            if (!body.title || !body.client_name) {
+              return handleCORS(NextResponse.json(
+                { error: "title and client_name are required" }, 
+                { status: 400 }
+              ))
+            }
+
+            try {
+              const result = await db.query(`
+                UPDATE cases 
+                SET title = $1, client_name = $2, description = $3, case_type = $4, 
+                    priority = $5, status = $6, updated_at = $7
+                WHERE id = $8
+                RETURNING *
+              `, [
+                body.title, body.client_name, body.description || '', 
+                body.case_type || '', body.priority || 'medium', 
+                body.status || 'active', new Date().toISOString(), caseId
+              ])
+              
+              if (result.rows.length === 0) {
+                return handleCORS(NextResponse.json({ error: 'Case not found' }, { status: 404 }))
+              }
+              
+              // Clear context cache
+              await clearCaseCache(caseId, db)
+              
+              return handleCORS(NextResponse.json(result.rows[0]))
+            } catch (error) {
+              console.error('Update case error:', error)
+              return handleCORS(NextResponse.json(
+                { error: "Update failed: " + error.message }, 
+                { status: 500 }
+              ))
+            }
+          }
+
+          // Archive case
+          if (route.match(/^\/cases\/[^\/]+\/archive$/) && method === 'POST') {
+            const caseId = route.split('/')[2]
+            
+            if (!caseId) {
+              return handleCORS(NextResponse.json({ error: 'Case ID is required' }, { status: 400 }))
+            }
+
+            try {
+              const result = await db.query(`
+                UPDATE cases 
+                SET status = 'archived', updated_at = $1
+                WHERE id = $2
+                RETURNING *
+              `, [new Date().toISOString(), caseId])
+              
+              if (result.rows.length === 0) {
+                return handleCORS(NextResponse.json({ error: 'Case not found' }, { status: 404 }))
+              }
+              
+              // Clear context cache
+              await clearCaseCache(caseId, db)
+              
+              return handleCORS(NextResponse.json({ success: true, case: result.rows[0] }))
+            } catch (error) {
+              console.error('Archive case error:', error)
+              return handleCORS(NextResponse.json(
+                { error: "Archive failed: " + error.message }, 
+                { status: 500 }
+              ))
+            }
+          }
+
+          // Delete case (permanent deletion with CASCADE)
+          if (route.match(/^\/cases\/[^\/]+$/) && method === 'DELETE') {
+            const caseId = route.split('/')[2]
+            
+            if (!caseId) {
+              return handleCORS(NextResponse.json({ error: 'Case ID is required' }, { status: 400 }))
+            }
+
+            try {
+              // Delete case (CASCADE will delete all related data)
+              const result = await db.query(`
+                DELETE FROM cases 
+                WHERE id = $1
+                RETURNING id
+              `, [caseId])
+              
+              if (result.rows.length === 0) {
+                return handleCORS(NextResponse.json({ error: 'Case not found' }, { status: 404 }))
+              }
+              
+              return handleCORS(NextResponse.json({ success: true }))
+            } catch (error) {
+              console.error('Delete case error:', error)
+              return handleCORS(NextResponse.json(
+                { error: "Delete failed: " + error.message }, 
+                { status: 500 }
+              ))
+            }
+          }
 
     // Photo upload endpoint
     if (route === '/photos/upload' && method === 'POST') {
@@ -825,75 +934,93 @@ async function handleRoute(request, { params }) {
           return handleCORS(NextResponse.json({ error: "No OCR results found for this case" }, { status: 404 }))
         }
         
-        // Generate PDF
-        const PDFDocument = require('pdfkit')
-        const doc = new PDFDocument()
-        
-        // Set response headers for PDF download
-        const response = new NextResponse()
-        response.headers.set('Content-Type', 'application/pdf')
-        response.headers.set('Content-Disposition', `attachment; filename="case_${case_.case_number}_transcriptions.pdf"`)
-        
-        // Pipe PDF to response
-        doc.pipe(response)
+        // Generate PDF using jspdf (more reliable in Next.js)
+        const { jsPDF } = require('jspdf')
+        const doc = new jsPDF()
         
         // Add title page
-        doc.fontSize(20).text(`Дело: ${case_.title}`, 50, 50)
-        doc.fontSize(16).text(`Клиент: ${case_.client_name}`, 50, 80)
-        doc.fontSize(14).text(`Номер дела: ${case_.case_number}`, 50, 110)
-        doc.fontSize(12).text(`Дата создания: ${new Date(case_.created_at).toLocaleDateString('ru-RU')}`, 50, 140)
-        doc.fontSize(12).text(`Тип дела: ${case_.case_type}`, 50, 160)
-        doc.fontSize(12).text(`Приоритет: ${case_.priority}`, 50, 180)
+        doc.setFontSize(20)
+        doc.text(`Дело: ${case_.title}`, 20, 30)
+        doc.setFontSize(16)
+        doc.text(`Клиент: ${case_.client_name}`, 20, 50)
+        doc.setFontSize(14)
+        doc.text(`Номер дела: ${case_.case_number}`, 20, 70)
+        doc.setFontSize(12)
+        doc.text(`Дата создания: ${new Date(case_.created_at).toLocaleDateString('ru-RU')}`, 20, 90)
+        doc.text(`Тип дела: ${case_.case_type}`, 20, 105)
+        doc.text(`Приоритет: ${case_.priority}`, 20, 120)
         
         if (case_.description) {
-          doc.fontSize(12).text(`Описание:`, 50, 210)
-          doc.fontSize(10).text(case_.description, 50, 230, { width: 500 })
+          doc.text(`Описание:`, 20, 140)
+          const splitDescription = doc.splitTextToSize(case_.description, 170)
+          doc.text(splitDescription, 20, 155)
         }
         
-        // Add new page
-        doc.addPage()
-        
         // Add OCR transcriptions
-        doc.fontSize(16).text('Расшифровки документов', 50, 50)
+        let yPosition = 180
+        doc.setFontSize(16)
+        doc.text('Расшифровки документов', 20, yPosition)
+        yPosition += 20
         
         photosResult.rows.forEach((photo, index) => {
-          // Add new page for each photo (except first)
-          if (index > 0) {
+          // Check if we need a new page
+          if (yPosition > 250) {
             doc.addPage()
+            yPosition = 30
           }
           
           // Photo header
-          doc.fontSize(14).text(`Документ ${index + 1}: ${photo.original_name}`, 50, 50)
-          doc.fontSize(10).text(`Загружен: ${new Date(photo.created_at).toLocaleDateString('ru-RU')}`, 50, 70)
-          doc.fontSize(10).text(`Уверенность OCR: ${(photo.confidence_score * 100).toFixed(1)}%`, 50, 85)
+          doc.setFontSize(14)
+          doc.text(`Документ ${index + 1}: ${photo.original_name}`, 20, yPosition)
+          yPosition += 15
+          
+          doc.setFontSize(10)
+          doc.text(`Загружен: ${new Date(photo.created_at).toLocaleDateString('ru-RU')}`, 20, yPosition)
+          yPosition += 10
+          doc.text(`Уверенность OCR: ${(photo.confidence_score * 100).toFixed(1)}%`, 20, yPosition)
+          yPosition += 15
           
           // OCR text
-          doc.fontSize(12).text('Текст документа:', 50, 110)
-          doc.fontSize(10).text(photo.raw_text, 50, 130, { 
-            width: 500,
-            align: 'left'
-          })
+          doc.setFontSize(12)
+          doc.text('Текст документа:', 20, yPosition)
+          yPosition += 10
+          
+          doc.setFontSize(10)
+          const splitText = doc.splitTextToSize(photo.raw_text, 170)
+          doc.text(splitText, 20, yPosition)
+          yPosition += splitText.length * 5 + 10
           
           // Extracted data
           if (photo.extracted_dates && photo.extracted_dates.length > 0) {
-            doc.fontSize(10).text(`Извлеченные даты: ${photo.extracted_dates.join(', ')}`, 50, doc.y + 20)
+            doc.text(`Извлеченные даты: ${photo.extracted_dates.join(', ')}`, 20, yPosition)
+            yPosition += 10
           }
           
           if (photo.extracted_numbers && photo.extracted_numbers.length > 0) {
-            doc.fontSize(10).text(`Извлеченные номера: ${photo.extracted_numbers.join(', ')}`, 50, doc.y + 10)
+            doc.text(`Извлеченные номера: ${photo.extracted_numbers.join(', ')}`, 20, yPosition)
+            yPosition += 10
           }
           
           if (photo.extracted_names && photo.extracted_names.length > 0) {
-            doc.fontSize(10).text(`Извлеченные имена: ${photo.extracted_names.join(', ')}`, 50, doc.y + 10)
+            doc.text(`Извлеченные имена: ${photo.extracted_names.join(', ')}`, 20, yPosition)
+            yPosition += 10
           }
           
           if (photo.extracted_amounts && photo.extracted_amounts.length > 0) {
-            doc.fontSize(10).text(`Извлеченные суммы: ${photo.extracted_amounts.join(', ')}`, 50, doc.y + 10)
+            doc.text(`Извлеченные суммы: ${photo.extracted_amounts.join(', ')}`, 20, yPosition)
+            yPosition += 10
           }
+          
+          yPosition += 20 // Space between documents
         })
         
-        // Finalize PDF
-        doc.end()
+        // Generate PDF buffer
+        const pdfBuffer = doc.output('arraybuffer')
+        
+        // Set response headers for PDF download
+        const response = new NextResponse(pdfBuffer)
+        response.headers.set('Content-Type', 'application/pdf')
+        response.headers.set('Content-Disposition', `attachment; filename="case_${case_.case_number}_transcriptions.pdf"`)
         
         return handleCORS(response)
         

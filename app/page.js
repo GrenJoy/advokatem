@@ -33,6 +33,10 @@ export default function App() {
   const [additionalFiles, setAdditionalFiles] = useState([])
   const [showAdditionalFiles, setShowAdditionalFiles] = useState(false)
   const [showAddFileDialog, setShowAddFileDialog] = useState(false)
+  const [showEditCaseDialog, setShowEditCaseDialog] = useState(false)
+  const [showArchiveDialog, setShowArchiveDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showArchivedCases, setShowArchivedCases] = useState(false)
 
   // Load cases on component mount
   useEffect(() => {
@@ -76,6 +80,76 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error creating case:', error)
+      toast.error('Ошибка соединения с сервером')
+    }
+  }
+
+  const updateCase = async (caseId, caseData) => {
+    try {
+      const response = await fetch(`/api/optimized/cases/${caseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(caseData)
+      })
+      
+      if (response.ok) {
+        const updatedCase = await response.json()
+        setCases(cases.map(c => c.id === caseId ? updatedCase : c))
+        if (selectedCase?.id === caseId) {
+          setSelectedCase(updatedCase)
+        }
+        setShowEditCaseDialog(false)
+        toast.success('Дело обновлено успешно')
+        return updatedCase
+      } else {
+        toast.error('Ошибка обновления дела')
+      }
+    } catch (error) {
+      console.error('Error updating case:', error)
+      toast.error('Ошибка соединения с сервером')
+    }
+  }
+
+  const archiveCase = async (caseId) => {
+    try {
+      const response = await fetch(`/api/optimized/cases/${caseId}/archive`, {
+        method: 'POST'
+      })
+      
+      if (response.ok) {
+        setCases(cases.filter(c => c.id !== caseId))
+        if (selectedCase?.id === caseId) {
+          setSelectedCase(null)
+        }
+        setShowArchiveDialog(false)
+        toast.success('Дело отправлено в архив')
+      } else {
+        toast.error('Ошибка архивирования дела')
+      }
+    } catch (error) {
+      console.error('Error archiving case:', error)
+      toast.error('Ошибка соединения с сервером')
+    }
+  }
+
+  const deleteCase = async (caseId) => {
+    try {
+      const response = await fetch(`/api/optimized/cases/${caseId}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        setCases(cases.filter(c => c.id !== caseId))
+        if (selectedCase?.id === caseId) {
+          setSelectedCase(null)
+        }
+        setShowDeleteDialog(false)
+        toast.success('Дело удалено навсегда')
+      } else {
+        toast.error('Ошибка удаления дела')
+      }
+    } catch (error) {
+      console.error('Error deleting case:', error)
       toast.error('Ошибка соединения с сервером')
     }
   }
@@ -193,6 +267,7 @@ export default function App() {
   // AI Chat functions
   const loadChatHistory = async (caseId) => {
     try {
+      setIsChatLoading(true)
       const response = await fetch(`/api/optimized/cases/${caseId}/chat`)
       if (response.ok) {
         const messages = await response.json()
@@ -200,6 +275,8 @@ export default function App() {
       }
     } catch (error) {
       console.error('Error loading chat history:', error)
+    } finally {
+      setIsChatLoading(false)
     }
   }
 
@@ -380,9 +457,22 @@ export default function App() {
   // Load documents, chat and additional files when case is selected
   useEffect(() => {
     if (selectedCase) {
+      // Clear chat when switching cases
+      setChatMessages([])
+      setChatInput('')
+      setIsChatLoading(false)
+      
+      // Load new case data
       loadDocuments(selectedCase.id)
       loadChatHistory(selectedCase.id)
       loadAdditionalFiles(selectedCase.id)
+    } else {
+      // Clear everything when no case selected
+      setChatMessages([])
+      setChatInput('')
+      setIsChatLoading(false)
+      setDocuments([])
+      setAdditionalFiles([])
     }
   }, [selectedCase])
 
@@ -445,43 +535,52 @@ export default function App() {
               <FileText className="h-8 w-8 text-blue-600 mr-3" />
               <h1 className="text-2xl font-bold text-gray-900">Адвокатская Практика</h1>
             </div>
-            <div className="flex items-center space-x-2">
-              {selectedCase && (
-                <>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowAdditionalFiles(!showAdditionalFiles)}
-                    className="flex items-center space-x-1"
-                  >
-                    <Paperclip className="h-4 w-4" />
-                    <span className="hidden sm:inline">Файлы</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={downloadPDF}
-                    className="flex items-center space-x-1"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span className="hidden sm:inline">PDF</span>
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm"
-                    onClick={() => setShowChat(!showChat)}
-                    className="flex items-center space-x-1"
-                  >
-                    <MessageCircle className="h-4 w-4" />
-                    <span className="hidden sm:inline">ИИ-чат</span>
-                  </Button>
-                </>
-              )}
-              <Button variant="outline" size="sm" className="flex items-center space-x-1">
-                <Settings className="h-4 w-4" />
-                <span className="hidden sm:inline">Настройки</span>
-              </Button>
-            </div>
+                   <div className="flex items-center space-x-2">
+                     {selectedCase && (
+                       <>
+                         <Button 
+                           variant="outline" 
+                           size="sm"
+                           onClick={() => setShowAdditionalFiles(!showAdditionalFiles)}
+                           className="flex items-center space-x-1"
+                         >
+                           <Paperclip className="h-4 w-4" />
+                           <span className="hidden sm:inline">Файлы</span>
+                         </Button>
+                         <Button 
+                           variant="outline" 
+                           size="sm"
+                           onClick={downloadPDF}
+                           className="flex items-center space-x-1"
+                         >
+                           <Download className="h-4 w-4" />
+                           <span className="hidden sm:inline">PDF</span>
+                         </Button>
+                         <Button 
+                           variant="outline" 
+                           size="sm"
+                           onClick={() => setShowChat(!showChat)}
+                           className="flex items-center space-x-1"
+                         >
+                           <MessageCircle className="h-4 w-4" />
+                           <span className="hidden sm:inline">ИИ-чат</span>
+                         </Button>
+                       </>
+                     )}
+                     <Button 
+                       variant="outline" 
+                       size="sm"
+                       onClick={() => setShowArchivedCases(!showArchivedCases)}
+                       className="flex items-center space-x-1"
+                     >
+                       <FileText className="h-4 w-4" />
+                       <span className="hidden sm:inline">Архив</span>
+                     </Button>
+                     <Button variant="outline" size="sm" className="flex items-center space-x-1">
+                       <Settings className="h-4 w-4" />
+                       <span className="hidden sm:inline">Настройки</span>
+                     </Button>
+                   </div>
           </div>
         </div>
       </header>
@@ -572,7 +671,7 @@ export default function App() {
                       <PriorityBadge priority={selectedCase.priority} />
                     </div>
                   </div>
-                  <p className="text-sm text-gray-600 mb-4">{selectedCase.description}</p>
+                   <p className="text-sm text-gray-900 mb-4">{selectedCase.description}</p>
                   <div className="flex space-x-2">
                     <Button 
                       variant="outline" 
@@ -582,6 +681,33 @@ export default function App() {
                     >
                       <Download className="h-4 w-4" />
                       <span>Скачать PDF</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowEditCaseDialog(true)}
+                      className="flex items-center space-x-1"
+                    >
+                      <Settings className="h-4 w-4" />
+                      <span>Редактировать</span>
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowArchiveDialog(true)}
+                      className="flex items-center space-x-1"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>В архив</span>
+                    </Button>
+                    <Button 
+                      variant="destructive" 
+                      size="sm"
+                      onClick={() => setShowDeleteDialog(true)}
+                      className="flex items-center space-x-1"
+                    >
+                      <X className="h-4 w-4" />
+                      <span>Удалить</span>
                     </Button>
                   </div>
                 </div>
@@ -715,28 +841,40 @@ export default function App() {
                   )}
                 </div>
 
-                {/* AI Chat Section */}
-                <div className="bg-white rounded-lg shadow-sm border p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-lg font-semibold">ИИ-ассистент</h3>
-                    <Button 
-                      variant={showChat ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setShowChat(!showChat)}
-                    >
-                      <MessageCircle className="h-4 w-4 mr-2" />
-                      {showChat ? 'Скрыть чат' : 'Открыть чат'}
-                    </Button>
-                  </div>
+                 {/* AI Chat Section */}
+                 <div className="bg-white rounded-lg shadow-sm border p-6">
+                   <div className="flex items-center justify-between mb-4">
+                     <div>
+                       <h3 className="text-lg font-semibold">ИИ-ассистент</h3>
+                       <p className="text-sm text-gray-500">Дело: {selectedCase.title}</p>
+                     </div>
+                     <Button 
+                       variant={showChat ? "default" : "outline"}
+                       size="sm"
+                       onClick={() => setShowChat(!showChat)}
+                     >
+                       <MessageCircle className="h-4 w-4 mr-2" />
+                       {showChat ? 'Скрыть чат' : 'Открыть чат'}
+                     </Button>
+                   </div>
                   
                   {showChat && (
                     <div className="border rounded-lg h-96 flex flex-col">
                       <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                        {chatMessages.length === 0 ? (
+                        {isChatLoading && chatMessages.length === 0 ? (
+                          <div className="text-center text-gray-500 py-8">
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                            <p>Загрузка истории чата...</p>
+                          </div>
+                        ) : chatMessages.length === 0 ? (
                           <div className="text-center text-gray-500 py-8">
                             <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
                             <p>Начните диалог с ИИ-ассистентом</p>
-                            <p className="text-sm">Ассистент знает все о вашем деле и документах</p>
+                            <p className="text-sm">Ассистент знает все о деле "{selectedCase.title}" и его документах</p>
+                            <p className="text-xs text-gray-400 mt-2">
+                              Загружено документов: {documents.length} | 
+                              Доп. файлов: {additionalFiles.length}
+                            </p>
                           </div>
                         ) : (
                           chatMessages.map((message) => (
@@ -906,25 +1044,82 @@ export default function App() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Additional File Dialog */}
-      <Dialog open={showAddFileDialog} onOpenChange={setShowAddFileDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Добавить файл</DialogTitle>
-            <DialogDescription>
-              Загрузите дополнительный файл к делу (Word, PDF, Excel и т.д.)
-            </DialogDescription>
-          </DialogHeader>
-          
-          <AddFileForm 
-            onSubmit={uploadAdditionalFile}
-            onCancel={() => setShowAddFileDialog(false)}
-          />
-        </DialogContent>
-      </Dialog>
-    </div>
-  )
-}
+             {/* Add Additional File Dialog */}
+             <Dialog open={showAddFileDialog} onOpenChange={setShowAddFileDialog}>
+               <DialogContent className="max-w-md">
+                 <DialogHeader>
+                   <DialogTitle>Добавить файл</DialogTitle>
+                   <DialogDescription>
+                     Загрузите дополнительный файл к делу (Word, PDF, Excel и т.д.)
+                   </DialogDescription>
+                 </DialogHeader>
+                 
+                 <AddFileForm 
+                   onSubmit={uploadAdditionalFile}
+                   onCancel={() => setShowAddFileDialog(false)}
+                 />
+               </DialogContent>
+             </Dialog>
+
+             {/* Edit Case Dialog */}
+             <Dialog open={showEditCaseDialog} onOpenChange={setShowEditCaseDialog}>
+               <DialogContent className="sm:max-w-md">
+                 <DialogHeader>
+                   <DialogTitle>Редактировать дело</DialogTitle>
+                   <DialogDescription>
+                     Измените информацию о деле
+                   </DialogDescription>
+                 </DialogHeader>
+                 <EditCaseForm 
+                   case_={selectedCase}
+                   onSubmit={(data) => updateCase(selectedCase.id, data)}
+                   onCancel={() => setShowEditCaseDialog(false)}
+                 />
+               </DialogContent>
+             </Dialog>
+
+             {/* Archive Case Dialog */}
+             <Dialog open={showArchiveDialog} onOpenChange={setShowArchiveDialog}>
+               <DialogContent className="sm:max-w-md">
+                 <DialogHeader>
+                   <DialogTitle>Отправить в архив</DialogTitle>
+                   <DialogDescription>
+                     Дело будет перемещено в архив. Все документы, фотографии и чат сохранятся.
+                   </DialogDescription>
+                 </DialogHeader>
+                 <div className="flex justify-end space-x-2">
+                   <Button variant="outline" onClick={() => setShowArchiveDialog(false)}>
+                     Отмена
+                   </Button>
+                   <Button onClick={() => archiveCase(selectedCase.id)}>
+                     Отправить в архив
+                   </Button>
+                 </div>
+               </DialogContent>
+             </Dialog>
+
+             {/* Delete Case Dialog */}
+             <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+               <DialogContent className="sm:max-w-md">
+                 <DialogHeader>
+                   <DialogTitle>Удалить дело навсегда</DialogTitle>
+                   <DialogDescription>
+                     ВНИМАНИЕ! Это действие нельзя отменить. Все документы, фотографии, чат и файлы будут удалены навсегда.
+                   </DialogDescription>
+                 </DialogHeader>
+                 <div className="flex justify-end space-x-2">
+                   <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                     Отмена
+                   </Button>
+                   <Button variant="destructive" onClick={() => deleteCase(selectedCase.id)}>
+                     Удалить навсегда
+                   </Button>
+                 </div>
+               </DialogContent>
+             </Dialog>
+           </div>
+         )
+       }
 
 // Add File Form Component
 function AddFileForm({ onSubmit, onCancel }) {
@@ -1079,6 +1274,109 @@ function NewCaseForm({ onSubmit }) {
       <Button type="submit" className="w-full">
         Создать дело
       </Button>
+    </form>
+  )
+}
+
+// Edit Case Form Component
+function EditCaseForm({ case_, onSubmit, onCancel }) {
+  const [formData, setFormData] = useState({
+    title: case_?.title || '',
+    client_name: case_?.client_name || '',
+    description: case_?.description || '',
+    priority: case_?.priority || 'medium',
+    case_type: case_?.case_type || '',
+    status: case_?.status || 'active'
+  })
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    onSubmit(formData)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="edit_title">Название дела</Label>
+        <Input
+          id="edit_title"
+          value={formData.title}
+          onChange={(e) => setFormData({...formData, title: e.target.value})}
+          placeholder="Введите название дела"
+          required
+        />
+      </div>
+      
+      <div>
+        <Label htmlFor="edit_client_name">Клиент</Label>
+        <Input
+          id="edit_client_name"
+          value={formData.client_name}
+          onChange={(e) => setFormData({...formData, client_name: e.target.value})}
+          placeholder="Имя клиента"
+          required
+        />
+      </div>
+      
+      <div>
+        <Label htmlFor="edit_case_type">Тип дела</Label>
+        <Input
+          id="edit_case_type"
+          value={formData.case_type}
+          onChange={(e) => setFormData({...formData, case_type: e.target.value})}
+          placeholder="Гражданское, уголовное, административное..."
+        />
+      </div>
+      
+      <div>
+        <Label htmlFor="edit_priority">Приоритет</Label>
+        <Select value={formData.priority} onValueChange={(value) => setFormData({...formData, priority: value})}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">Низкий</SelectItem>
+            <SelectItem value="medium">Средний</SelectItem>
+            <SelectItem value="high">Высокий</SelectItem>
+            <SelectItem value="urgent">Срочный</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div>
+        <Label htmlFor="edit_status">Статус</Label>
+        <Select value={formData.status} onValueChange={(value) => setFormData({...formData, status: value})}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="active">Активное</SelectItem>
+            <SelectItem value="paused">Приостановлено</SelectItem>
+            <SelectItem value="completed">Завершено</SelectItem>
+            <SelectItem value="archived">Архив</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      <div>
+        <Label htmlFor="edit_description">Описание</Label>
+        <Textarea
+          id="edit_description"
+          value={formData.description}
+          onChange={(e) => setFormData({...formData, description: e.target.value})}
+          placeholder="Краткое описание проблемы..."
+          rows={3}
+        />
+      </div>
+      
+      <div className="flex justify-end space-x-2">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Отмена
+        </Button>
+        <Button type="submit">
+          Сохранить изменения
+        </Button>
+      </div>
     </form>
   )
 }
