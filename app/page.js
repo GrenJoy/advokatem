@@ -487,7 +487,7 @@ export default function App() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className={`grid gap-8 ${showChat ? 'grid-cols-1 lg:grid-cols-2' : 'grid-cols-1 lg:grid-cols-3'}`}>
+        <div className="grid gap-8 grid-cols-1 lg:grid-cols-4">
           {/* Left Sidebar - Cases List */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-lg shadow-sm border">
@@ -557,53 +557,221 @@ export default function App() {
           </div>
 
           {/* Main Content */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-3">
             {selectedCase ? (
-              <div className="space-y-4">
-                {/* Action Buttons for Selected Case */}
-                <div className="bg-white rounded-lg shadow-sm border p-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">Действия с делом</h3>
+              <div className="space-y-6">
+                {/* Case Info Header */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">{selectedCase.title}</h2>
+                      <p className="text-gray-600">{selectedCase.client_name}</p>
+                    </div>
                     <div className="flex space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setShowAdditionalFiles(!showAdditionalFiles)}
-                        className="flex items-center space-x-1"
-                      >
-                        <Paperclip className="h-4 w-4" />
-                        <span>Доп. файлы</span>
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={downloadPDF}
-                        className="flex items-center space-x-1"
-                      >
-                        <Download className="h-4 w-4" />
-                        <span>Скачать PDF</span>
-                      </Button>
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setShowChat(!showChat)}
-                        className="flex items-center space-x-1"
-                      >
-                        <MessageCircle className="h-4 w-4" />
-                        <span>ИИ-чат</span>
+                      <StatusBadge status={selectedCase.status} />
+                      <PriorityBadge priority={selectedCase.priority} />
+                    </div>
+                  </div>
+                  <p className="text-sm text-gray-600 mb-4">{selectedCase.description}</p>
+                  <div className="flex space-x-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={downloadPDF}
+                      className="flex items-center space-x-1"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Скачать PDF</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Photos Section */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Документы и фотографии</h3>
+                    <div {...getRootProps()} className="cursor-pointer">
+                      <input {...getInputProps()} />
+                      <Button size="sm">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Загрузить файлы
                       </Button>
                     </div>
                   </div>
+                  
+                  {documents.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <FileText className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>Нет загруженных документов</p>
+                      <p className="text-sm">Перетащите файлы сюда или нажмите "Загрузить файлы"</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                      {documents.map((doc, index) => (
+                        <div 
+                          key={doc.id} 
+                          className="relative bg-gray-50 rounded-lg p-4 cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => openPhotoModal(doc, index)}
+                        >
+                          <div className="text-center">
+                            <FileText className="h-12 w-12 mx-auto mb-2 text-blue-600" />
+                            <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                              {index + 1}
+                            </div>
+                            <p className="text-xs font-medium truncate mb-1">{doc.original_name}</p>
+                            <p className="text-xs text-gray-500">
+                              {(doc.file_size / 1024).toFixed(1)} KB
+                            </p>
+                            {doc.raw_text && (
+                              <Badge variant="outline" className="text-xs mt-1">OCR готов</Badge>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                
-                <CaseDetails 
-                  case_={selectedCase}
-                  documents={documents}
-                  uploadProps={{ getRootProps, getInputProps, isDragActive }}
-                  uploadProgress={uploadProgress}
-                  ocrProgress={ocrProgress}
-                  onPhotoClick={openPhotoModal}
-                />
+
+                {/* Additional Files Section */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">Дополнительные файлы</h3>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => setShowAddFileDialog(true)}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Добавить файл
+                    </Button>
+                  </div>
+                  
+                  {additionalFiles.length === 0 ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <Paperclip className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                      <p>Нет дополнительных файлов</p>
+                      <p className="text-sm">Нажмите "Добавить файл" для загрузки документов</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {additionalFiles.map((file) => (
+                        <div key={file.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3 flex-1">
+                              <FileText className="h-8 w-8 text-blue-600 flex-shrink-0" />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <p className="text-sm font-medium truncate">{file.original_name}</p>
+                                  {file.is_important && (
+                                    <Badge variant="destructive" className="text-xs">Важно</Badge>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-500">
+                                  {new Date(file.created_at).toLocaleDateString('ru-RU')} • 
+                                  {(file.file_size / 1024).toFixed(1)} KB
+                                </p>
+                                {file.description && (
+                                  <p className="text-xs text-gray-600 mt-1">{file.description}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => downloadAdditionalFile(file)}
+                              >
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => deleteAdditionalFile(file.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* AI Chat Section */}
+                <div className="bg-white rounded-lg shadow-sm border p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold">ИИ-ассистент</h3>
+                    <Button 
+                      variant={showChat ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setShowChat(!showChat)}
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      {showChat ? 'Скрыть чат' : 'Открыть чат'}
+                    </Button>
+                  </div>
+                  
+                  {showChat && (
+                    <div className="border rounded-lg h-96 flex flex-col">
+                      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                        {chatMessages.length === 0 ? (
+                          <div className="text-center text-gray-500 py-8">
+                            <MessageCircle className="h-12 w-12 mx-auto mb-4 text-gray-300" />
+                            <p>Начните диалог с ИИ-ассистентом</p>
+                            <p className="text-sm">Ассистент знает все о вашем деле и документах</p>
+                          </div>
+                        ) : (
+                          chatMessages.map((message) => (
+                            <div 
+                              key={message.id}
+                              className={`flex ${message.message_type === 'user' ? 'justify-end' : 'justify-start'}`}
+                            >
+                              <div className={`max-w-[80%] p-3 rounded-lg ${
+                                message.message_type === 'user' 
+                                  ? 'bg-blue-500 text-white' 
+                                  : 'bg-gray-100 text-gray-900'
+                              }`}>
+                                <p className="text-sm">{message.message_text}</p>
+                                <p className="text-xs opacity-70 mt-1">
+                                  {new Date(message.created_at).toLocaleTimeString()}
+                                </p>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                        {isChatLoading && (
+                          <div className="flex justify-start">
+                            <div className="bg-gray-100 p-3 rounded-lg">
+                              <div className="flex space-x-1">
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="p-4 border-t">
+                        <div className="flex space-x-2">
+                          <Input
+                            value={chatInput}
+                            onChange={(e) => setChatInput(e.target.value)}
+                            placeholder="Задайте вопрос о деле..."
+                            onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                          />
+                          <Button 
+                            onClick={sendChatMessage}
+                            disabled={!chatInput.trim() || isChatLoading}
+                          >
+                            <Send className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="bg-white rounded-lg shadow-sm border p-12 text-center">
@@ -614,160 +782,6 @@ export default function App() {
             )}
           </div>
 
-          {/* Additional Files Panel */}
-          {showAdditionalFiles && selectedCase && (
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-sm border h-[600px] flex flex-col">
-                <div className="p-4 border-b">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">Дополнительные файлы</h3>
-                    <div className="flex space-x-2">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => setShowAddFileDialog(true)}
-                      >
-                        <Plus className="h-4 w-4 mr-1" />
-                        Добавить
-                      </Button>
-                      <Button 
-                        variant="ghost" 
-                        size="sm"
-                        onClick={() => setShowAdditionalFiles(false)}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <p className="text-sm text-gray-500">Дело: {selectedCase.title}</p>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {additionalFiles.length === 0 ? (
-                    <div className="text-center text-gray-500 py-8">
-                      <Paperclip className="h-12 w-12 mx-auto mb-4 text-gray-300" />
-                      <p>Нет дополнительных файлов</p>
-                      <p className="text-sm">Нажмите "Добавить" для загрузки</p>
-                    </div>
-                  ) : (
-                            additionalFiles.map((file) => (
-                              <div key={file.id} className="border rounded-lg p-4 hover:shadow-md transition-shadow bg-white">
-                                <div className="flex items-start justify-between">
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center space-x-2 mb-2">
-                                      <FileText className="h-5 w-5 text-blue-600 flex-shrink-0" />
-                                      <p className="text-sm font-medium truncate">{file.original_name}</p>
-                                      {file.is_important && (
-                                        <Badge variant="destructive" className="text-xs">Важно</Badge>
-                                      )}
-                                    </div>
-                                    <p className="text-xs text-gray-500 mb-1">
-                                      {new Date(file.created_at).toLocaleDateString('ru-RU')}
-                                    </p>
-                                    {file.description && (
-                                      <p className="text-xs text-gray-600 mb-2">{file.description}</p>
-                                    )}
-                                    <p className="text-xs text-gray-400">
-                                      {(file.file_size / 1024).toFixed(1)} KB
-                                    </p>
-                                  </div>
-                                  <div className="flex space-x-1">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => downloadAdditionalFile(file)}
-                                      className="text-blue-600 hover:text-blue-700"
-                                      title="Скачать файл"
-                                    >
-                                      <Download className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => deleteAdditionalFile(file.id)}
-                                      className="text-red-600 hover:text-red-700"
-                                      title="Удалить файл"
-                                    >
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                  </div>
-                                </div>
-                              </div>
-                            ))
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* AI Chat Panel */}
-          {showChat && selectedCase && (
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-lg shadow-sm border h-[600px] flex flex-col">
-                <div className="p-4 border-b">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-lg font-semibold">ИИ-чат</h3>
-                    <Button 
-                      variant="ghost" 
-                      size="sm"
-                      onClick={() => setShowChat(false)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <p className="text-sm text-gray-500">Дело: {selectedCase.title}</p>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                  {chatMessages.map((message) => (
-                    <div 
-                      key={message.id}
-                      className={`flex ${message.message_type === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className={`max-w-[80%] p-3 rounded-lg ${
-                        message.message_type === 'user' 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-gray-100 text-gray-900'
-                      }`}>
-                        <p className="text-sm">{message.message_text}</p>
-                        <p className="text-xs opacity-70 mt-1">
-                          {new Date(message.created_at).toLocaleTimeString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                  {isChatLoading && (
-                    <div className="flex justify-start">
-                      <div className="bg-gray-100 p-3 rounded-lg">
-                        <div className="flex space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-                
-                <div className="p-4 border-t">
-                  <div className="flex space-x-2">
-                    <Input
-                      value={chatInput}
-                      onChange={(e) => setChatInput(e.target.value)}
-                      placeholder="Введите вопрос о деле..."
-                      onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
-                    />
-                    <Button 
-                      onClick={sendChatMessage}
-                      disabled={!chatInput.trim() || isChatLoading}
-                    >
-                      <Send className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
