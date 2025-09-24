@@ -367,7 +367,27 @@ async function handleRoute(request, { params }) {
         let db = null
         try {
           db = await connectToPostgres()
-          
+
+          // Patch db.query to auto-retry once on transient termination (XX000)
+          try {
+            const originalQuery = db.query.bind(db)
+            db.query = async (...args) => {
+              try {
+                return await originalQuery(...args)
+              } catch (err) {
+                if (err && (err.code === 'XX000' || String(err.message || '').includes('db_termination'))) {
+                  console.warn('DB termination detected, retrying query once...')
+                  try {
+                    await closeClient(db)
+                  } catch (_) {}
+                  db = await connectToPostgres()
+                  return await db.query(...args)
+                }
+                throw err
+              }
+            }
+          } catch (_) {}
+
           // Test connection
           await db.query('SELECT 1')
 
@@ -626,11 +646,12 @@ async function handleRoute(request, { params }) {
         const fileName = `${photoId}-${safeName}`
 
         // Create uploads directory if it doesn't exist
-        const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+        const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads')
         await fs.mkdir(uploadsDir, { recursive: true })
 
         // Save file to disk
-        const filePath = path.join(uploadsDir, fileName)
+        const filePath = path.resolve(uploadsDir, fileName)
+        await fs.mkdir(path.dirname(filePath), { recursive: true })
         await fs.writeFile(filePath, buffer)
 
         const orderResult = await db.query(`
@@ -840,7 +861,7 @@ async function handleRoute(request, { params }) {
             
             const photo = result.rows[0]
             const safeFile = path.basename(photo.file_name)
-            const filePath = path.join(process.cwd(), 'public', 'uploads', safeFile)
+            const filePath = path.resolve(process.cwd(), 'public', 'uploads', safeFile)
             
             try {
               // Try to read the actual file
@@ -963,11 +984,12 @@ async function handleRoute(request, { params }) {
         const fileName = `${fileId}-${safeName}`
 
         // Create additional files directory if it doesn't exist
-        const additionalDir = path.join(process.cwd(), 'public', 'uploads', 'additional')
+        const additionalDir = path.resolve(process.cwd(), 'public', 'uploads', 'additional')
         await fs.mkdir(additionalDir, { recursive: true })
 
         // Save file to disk
-        const filePath = path.join(additionalDir, fileName)
+        const filePath = path.resolve(additionalDir, fileName)
+        await fs.mkdir(path.dirname(filePath), { recursive: true })
         await fs.writeFile(filePath, buffer)
 
         const fileDoc = {
@@ -1039,7 +1061,7 @@ async function handleRoute(request, { params }) {
       
       const file = result.rows[0]
       const safeFile = path.basename(file.file_name)
-      const filePath = path.join(process.cwd(), 'public', 'uploads', 'additional', safeFile)
+      const filePath = path.resolve(process.cwd(), 'public', 'uploads', 'additional', safeFile)
       
       try {
         const fileBuffer = await fs.readFile(filePath)
