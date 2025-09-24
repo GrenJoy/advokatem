@@ -1,6 +1,8 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
+import fs from 'fs/promises'
+import path from 'path'
 
 // PostgreSQL connection with retry logic
 let pg = null
@@ -606,6 +608,14 @@ async function handleRoute(request, { params }) {
         const photoId = uuidv4()
         const fileName = `${photoId}-${file.name}`
 
+        // Create uploads directory if it doesn't exist
+        const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+        await fs.mkdir(uploadsDir, { recursive: true })
+
+        // Save file to disk
+        const filePath = path.join(uploadsDir, fileName)
+        await fs.writeFile(filePath, buffer)
+
         const orderResult = await db.query(`
           SELECT COALESCE(MAX(display_order), 0) + 1 as next_order
           FROM case_photos WHERE case_id = $1
@@ -812,45 +822,66 @@ async function handleRoute(request, { params }) {
             }
             
             const photo = result.rows[0]
+            const filePath = path.join(process.cwd(), 'public', 'uploads', photo.file_name)
             
-            // For now, create a placeholder image with file info
-            // In production, you would serve the actual file from storage
-            const svgContent = `
-              <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-                    <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
-                  </linearGradient>
-                </defs>
-                <rect width="400" height="300" fill="url(#grad)"/>
-                <rect x="50" y="50" width="300" height="200" fill="white" rx="10"/>
-                <text x="200" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#374151">
-                  ${photo.original_name}
-                </text>
-                <text x="200" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">
-                  ${(photo.file_size / 1024).toFixed(1)} KB
-                </text>
-                <text x="200" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">
-                  ${new Date(photo.created_at).toLocaleDateString('ru-RU')}
-                </text>
-                <circle cx="200" cy="200" r="20" fill="#3b82f6"/>
-                <text x="200" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="white">📷</text>
-              </svg>
-            `
-            
-            const svgBuffer = Buffer.from(svgContent)
-            
-            return new NextResponse(svgBuffer, {
-              headers: {
-                'Content-Type': 'image/svg+xml',
-                'Cache-Control': 'public, max-age=3600',
-                'Access-Control-Allow-Origin': process.env.CORS_ORIGINS || '*',
-                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-                'Access-Control-Allow-Credentials': 'true'
-              }
-            })
+            try {
+              // Try to read the actual file
+              const fileBuffer = await fs.readFile(filePath)
+              
+              return new NextResponse(fileBuffer, {
+                headers: {
+                  'Content-Type': photo.file_type,
+                  'Cache-Control': 'public, max-age=3600',
+                  'Access-Control-Allow-Origin': process.env.CORS_ORIGINS || '*',
+                  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                  'Access-Control-Allow-Credentials': 'true'
+                }
+              })
+            } catch (error) {
+              // If file not found on disk, create a fallback SVG
+              console.log(`File not found on disk: ${filePath}, creating fallback`)
+              
+              const svgContent = `
+                <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" style="stop-color:#ef4444;stop-opacity:1" />
+                      <stop offset="100%" style="stop-color:#dc2626;stop-opacity:1" />
+                    </linearGradient>
+                  </defs>
+                  <rect width="400" height="300" fill="url(#grad)"/>
+                  <rect x="50" y="50" width="300" height="200" fill="white" rx="10"/>
+                  <text x="200" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#374151">
+                    ${photo.original_name}
+                  </text>
+                  <text x="200" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">
+                    ${(photo.file_size / 1024).toFixed(1)} KB
+                  </text>
+                  <text x="200" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">
+                    ${new Date(photo.created_at).toLocaleDateString('ru-RU')}
+                  </text>
+                  <text x="200" y="180" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#ef4444">
+                    Файл не найден на диске
+                  </text>
+                  <circle cx="200" cy="200" r="20" fill="#ef4444"/>
+                  <text x="200" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="white">⚠️</text>
+                </svg>
+              `
+              
+              const svgBuffer = Buffer.from(svgContent)
+              
+              return new NextResponse(svgBuffer, {
+                headers: {
+                  'Content-Type': 'image/svg+xml',
+                  'Cache-Control': 'public, max-age=3600',
+                  'Access-Control-Allow-Origin': process.env.CORS_ORIGINS || '*',
+                  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                  'Access-Control-Allow-Credentials': 'true'
+                }
+              })
+            }
           }
 
     // Get detailed OCR text for specific photo
@@ -911,6 +942,14 @@ async function handleRoute(request, { params }) {
         const fileId = uuidv4()
         const fileName = `${fileId}-${file.name}`
 
+        // Create additional files directory if it doesn't exist
+        const additionalDir = path.join(process.cwd(), 'public', 'uploads', 'additional')
+        await fs.mkdir(additionalDir, { recursive: true })
+
+        // Save file to disk
+        const filePath = path.join(additionalDir, fileName)
+        await fs.writeFile(filePath, buffer)
+
         const fileDoc = {
           id: fileId,
           case_id: caseId,
@@ -964,6 +1003,40 @@ async function handleRoute(request, { params }) {
       `, [caseId])
       
       return handleCORS(NextResponse.json(result.rows))
+    }
+
+    // Download additional file
+    if (route.match(/^\/additional-files\/[^\/]+\/download$/) && method === 'GET') {
+      const fileId = route.split('/')[2]
+      
+      const result = await db.query(`
+        SELECT * FROM case_additional_files WHERE id = $1
+      `, [fileId])
+      
+      if (result.rows.length === 0) {
+        return handleCORS(NextResponse.json({ error: "File not found" }, { status: 404 }))
+      }
+      
+      const file = result.rows[0]
+      const filePath = path.join(process.cwd(), 'public', 'uploads', 'additional', file.file_name)
+      
+      try {
+        const fileBuffer = await fs.readFile(filePath)
+        
+        return new NextResponse(fileBuffer, {
+          headers: {
+            'Content-Type': file.file_type,
+            'Content-Disposition': `attachment; filename="${file.original_name}"`,
+            'Cache-Control': 'public, max-age=3600',
+            'Access-Control-Allow-Origin': process.env.CORS_ORIGINS || '*',
+            'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'Access-Control-Allow-Credentials': 'true'
+          }
+        })
+      } catch (error) {
+        return handleCORS(NextResponse.json({ error: "File not found on disk" }, { status: 404 }))
+      }
     }
 
     // Delete additional file
