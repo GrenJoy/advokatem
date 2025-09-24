@@ -72,6 +72,15 @@ function handleCORS(response) {
   return response
 }
 
+// Filesystem root for uploads
+function getUploadsRoot() {
+  // On Render (and many PaaS) persistent writes allowed only under /tmp
+  if (process.env.NODE_ENV === 'production') {
+    return path.resolve('/tmp', 'uploads')
+  }
+  return path.resolve(process.cwd(), 'public', 'uploads')
+}
+
 // OPTIONS handler for CORS
 export async function OPTIONS() {
   return handleCORS(new NextResponse(null, { status: 200 }))
@@ -646,7 +655,7 @@ async function handleRoute(request, { params }) {
         const fileName = `${photoId}-${safeName}`
 
         // Create uploads directory if it doesn't exist
-        const uploadsDir = path.resolve(process.cwd(), 'public', 'uploads')
+        const uploadsDir = getUploadsRoot()
         await fs.mkdir(uploadsDir, { recursive: true })
 
         // Save file to disk
@@ -861,7 +870,7 @@ async function handleRoute(request, { params }) {
             
             const photo = result.rows[0]
             const safeFile = path.basename(photo.file_name)
-            const filePath = path.resolve(process.cwd(), 'public', 'uploads', safeFile)
+            const filePath = path.resolve(getUploadsRoot(), safeFile)
             
             try {
               // Try to read the actual file
@@ -984,7 +993,7 @@ async function handleRoute(request, { params }) {
         const fileName = `${fileId}-${safeName}`
 
         // Create additional files directory if it doesn't exist
-        const additionalDir = path.resolve(process.cwd(), 'public', 'uploads', 'additional')
+        const additionalDir = path.resolve(getUploadsRoot(), 'additional')
         await fs.mkdir(additionalDir, { recursive: true })
 
         // Save file to disk
@@ -1061,7 +1070,7 @@ async function handleRoute(request, { params }) {
       
       const file = result.rows[0]
       const safeFile = path.basename(file.file_name)
-      const filePath = path.resolve(process.cwd(), 'public', 'uploads', 'additional', safeFile)
+      const filePath = path.resolve(getUploadsRoot(), 'additional', safeFile)
       
       try {
         const fileBuffer = await fs.readFile(filePath)
