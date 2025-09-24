@@ -2,32 +2,40 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 
-// PostgreSQL connection with connection pooling
+// PostgreSQL connection with retry logic
 let pg = null
-let pool = null
 
 async function connectToPostgres() {
   if (!pg) {
     pg = require('pg')
   }
   
-  if (!pool) {
-    pool = new pg.Pool({
-      connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
-      max: 20, // Maximum number of clients in the pool
-      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-      connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
-      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
-    })
-    
-    // Handle pool errors
-    pool.on('error', (err) => {
-      console.error('Unexpected error on idle client', err)
-      process.exit(-1)
-    })
-  }
+  // Create a new client for each request to avoid connection issues
+  const client = new pg.Client({
+    connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    connectionTimeoutMillis: 10000, // 10 seconds timeout
+    idleTimeoutMillis: 30000, // 30 seconds idle timeout
+  })
   
-  return pool
+  try {
+    await client.connect()
+    return client
+  } catch (error) {
+    console.error('Failed to connect to PostgreSQL:', error)
+    throw error
+  }
+}
+
+// Helper function to safely close client
+async function closeClient(client) {
+  try {
+    if (client && !client._ending) {
+      await client.end()
+    }
+  } catch (error) {
+    console.error('Error closing client:', error)
+  }
 }
 
 // Gemini AI connection
@@ -339,8 +347,9 @@ async function handleRoute(request, { params }) {
   const route = `/${path.join('/')}`
   const method = request.method
 
+        let db = null
         try {
-          const db = await connectToPostgres()
+          db = await connectToPostgres()
           
           // Test connection
           await db.query('SELECT 1')
@@ -1126,15 +1135,6 @@ async function handleRoute(request, { params }) {
           // Handle database connection errors
           if (error.message.includes('connection error') || error.message.includes('not queryable')) {
             console.error('Database connection lost, attempting to reconnect...')
-            // Reset pool to force reconnection
-            if (pool) {
-              try {
-                await pool.end()
-                pool = null
-              } catch (e) {
-                console.error('Error closing pool:', e)
-              }
-            }
             
             return handleCORS(NextResponse.json(
               { error: "Database connection error. Please try again." }, 
@@ -1146,6 +1146,11 @@ async function handleRoute(request, { params }) {
             { error: "Internal server error: " + error.message }, 
             { status: 500 }
           ))
+        } finally {
+          // Always close the database connection
+          if (db) {
+            await closeClient(db)
+          }
         }
 }
 
