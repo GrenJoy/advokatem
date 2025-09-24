@@ -839,20 +839,32 @@ export default function App() {
                           <div className="text-center">
                              {/* Photo thumbnail or icon */}
                              <div className="w-full h-20 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden border border-blue-200">
-                               <img 
-                                 src={`/api/optimized/photos/${doc.id}/view`} 
-                                 alt={doc.original_name}
-                                 className="w-full h-full object-cover rounded-lg"
-                                 onError={(e) => {
-                                   e.target.style.display = 'none';
-                                   const fallback = document.createElement('div');
-                                   fallback.className = 'w-full h-full flex items-center justify-center';
-                                   fallback.innerHTML = doc.file_type && doc.file_type.startsWith('image/') 
-                                     ? '<svg class="h-8 w-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z" /></svg>'
-                                     : '<svg class="h-8 w-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" /></svg>';
-                                   e.target.parentNode.appendChild(fallback);
-                                 }}
-                               />
+                               {doc.file_type && doc.file_type.startsWith('image/') ? (
+                                 <img 
+                                   src={`/api/optimized/photos/${doc.id}/view`} 
+                                   alt={doc.original_name}
+                                   className="w-full h-full object-cover rounded-lg"
+                                   onError={(e) => {
+                                     e.target.style.display = 'none';
+                                     const fallback = document.createElement('div');
+                                     fallback.className = 'w-full h-full flex flex-col items-center justify-center text-center p-2';
+                                     fallback.innerHTML = `
+                                       <svg class="h-6 w-6 text-blue-600 mb-1" fill="currentColor" viewBox="0 0 24 24">
+                                         <path d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z" />
+                                       </svg>
+                                       <span class="text-xs text-blue-600 font-medium">${doc.original_name.substring(0, 15)}...</span>
+                                     `;
+                                     e.target.parentNode.appendChild(fallback);
+                                   }}
+                                 />
+                               ) : (
+                                 <div className="w-full h-full flex flex-col items-center justify-center text-center p-2">
+                                   <svg className="h-6 w-6 text-blue-600 mb-1" fill="currentColor" viewBox="0 0 24 24">
+                                     <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                                   </svg>
+                                   <span className="text-xs text-blue-600 font-medium">{doc.original_name.substring(0, 15)}...</span>
+                                 </div>
+                               )}
                              </div>
                             <div className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                               {index + 1}

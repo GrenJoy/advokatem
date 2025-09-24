@@ -2,23 +2,32 @@ import { GoogleGenerativeAI } from '@google/generative-ai'
 import { NextResponse } from 'next/server'
 import { v4 as uuidv4 } from 'uuid'
 
-// PostgreSQL connection
+// PostgreSQL connection with connection pooling
 let pg = null
-let client = null
+let pool = null
 
 async function connectToPostgres() {
   if (!pg) {
     pg = require('pg')
   }
   
-  if (!client) {
-    client = new pg.Client({
-      connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL
+  if (!pool) {
+    pool = new pg.Pool({
+      connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
+      max: 20, // Maximum number of clients in the pool
+      idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
+      connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
     })
-    await client.connect()
+    
+    // Handle pool errors
+    pool.on('error', (err) => {
+      console.error('Unexpected error on idle client', err)
+      process.exit(-1)
+    })
   }
   
-  return client
+  return pool
 }
 
 // Gemini AI connection
@@ -330,8 +339,11 @@ async function handleRoute(request, { params }) {
   const route = `/${path.join('/')}`
   const method = request.method
 
-  try {
-    const db = await connectToPostgres()
+        try {
+          const db = await connectToPostgres()
+          
+          // Test connection
+          await db.query('SELECT 1')
 
     // Root endpoint
     if (route === '/' && method === 'GET') {
@@ -1108,13 +1120,33 @@ async function handleRoute(request, { params }) {
       { status: 404 }
     ))
 
-  } catch (error) {
-    console.error('API Error:', error)
-    return handleCORS(NextResponse.json(
-      { error: "Internal server error: " + error.message }, 
-      { status: 500 }
-    ))
-  }
+        } catch (error) {
+          console.error('API Error:', error)
+          
+          // Handle database connection errors
+          if (error.message.includes('connection error') || error.message.includes('not queryable')) {
+            console.error('Database connection lost, attempting to reconnect...')
+            // Reset pool to force reconnection
+            if (pool) {
+              try {
+                await pool.end()
+                pool = null
+              } catch (e) {
+                console.error('Error closing pool:', e)
+              }
+            }
+            
+            return handleCORS(NextResponse.json(
+              { error: "Database connection error. Please try again." }, 
+              { status: 503 }
+            ))
+          }
+          
+          return handleCORS(NextResponse.json(
+            { error: "Internal server error: " + error.message }, 
+            { status: 500 }
+          ))
+        }
 }
 
 // Background OCR processing function
