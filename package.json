@@ -7,7 +7,7 @@
         "dev:no-reload": "next dev --hostname 0.0.0.0 --port 5000",
         "dev:webpack": "next dev --hostname 0.0.0.0 --port 5000",
         "build": "next build",
-        "start": "next start"
+        "start": "node .next/standalone/server.js"
     },
     "dependencies": {
         "@google-cloud/vision": "^5.3.3",

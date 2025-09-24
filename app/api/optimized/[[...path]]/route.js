@@ -11,22 +11,37 @@ async function connectToPostgres() {
   if (!pg) {
     pg = require('pg')
   }
-  
-  // Create a new client for each request to avoid connection issues
+
   const client = new pg.Client({
     connectionString: process.env.POSTGRES_URL || process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
-    connectionTimeoutMillis: 10000, // 10 seconds timeout
-    idleTimeoutMillis: 30000, // 30 seconds idle timeout
+    keepAlive: true,
+    connectionTimeoutMillis: 10000,
+    idleTimeoutMillis: 30000,
   })
-  
-  try {
-    await client.connect()
-    return client
-  } catch (error) {
-    console.error('Failed to connect to PostgreSQL:', error)
-    throw error
+
+  async function connectWithRetry(attempt = 1) {
+    try {
+      await client.connect()
+      // lightweight healthcheck to fail fast if needed
+      await client.query('SELECT 1')
+      // optional: set per-session timeouts
+      try {
+        await client.query("SET statement_timeout TO 60000")
+      } catch (_) {}
+      return client
+    } catch (error) {
+      if (attempt >= 5) {
+        console.error('Failed to connect to PostgreSQL after retries:', error)
+        throw error
+      }
+      const backoff = Math.min(1000 * 2 ** (attempt - 1), 8000)
+      await new Promise(r => setTimeout(r, backoff))
+      return connectWithRetry(attempt + 1)
+    }
   }
+
+  return connectWithRetry()
 }
 
 // Helper function to safely close client
@@ -81,7 +96,7 @@ async function processOCR(imageBuffer) {
     Если это документ, извлеки все даты, номера документов, суммы денег, имена людей и другую важную информацию.
     `
     
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" })
     
     const result = await model.generateContent([
       {
@@ -320,7 +335,7 @@ async function processAIChat(message, caseId, sessionId, db) {
 
     // Generate response using standard API
     const model = genAI.getGenerativeModel({ 
-      model: "gemini-1.5-flash",
+      model: "gemini-2.5-flash",
       systemInstruction: "Ты - профессиональный ИИ-ассистент адвоката. Ты помогаешь анализировать дела, документы и давать юридические советы. Используй всю доступную информацию о деле, включая загруженные документы и их OCR результаты. Будь конкретным и полезным в своих ответах."
     })
     
@@ -606,7 +621,9 @@ async function handleRoute(request, { params }) {
         const buffer = Buffer.from(bytes)
 
         const photoId = uuidv4()
-        const fileName = `${photoId}-${file.name}`
+        const rawName = (file.name || 'file')
+        const safeName = path.basename(rawName).replace(/[^\w.\-]+/g, '_')
+        const fileName = `${photoId}-${safeName}`
 
         // Create uploads directory if it doesn't exist
         const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
@@ -822,7 +839,8 @@ async function handleRoute(request, { params }) {
             }
             
             const photo = result.rows[0]
-            const filePath = path.join(process.cwd(), 'public', 'uploads', photo.file_name)
+            const safeFile = path.basename(photo.file_name)
+            const filePath = path.join(process.cwd(), 'public', 'uploads', safeFile)
             
             try {
               // Try to read the actual file
@@ -940,7 +958,9 @@ async function handleRoute(request, { params }) {
         const buffer = Buffer.from(bytes)
 
         const fileId = uuidv4()
-        const fileName = `${fileId}-${file.name}`
+        const rawName = (file.name || 'file')
+        const safeName = path.basename(rawName).replace(/[^\w.\-]+/g, '_')
+        const fileName = `${fileId}-${safeName}`
 
         // Create additional files directory if it doesn't exist
         const additionalDir = path.join(process.cwd(), 'public', 'uploads', 'additional')
@@ -1018,7 +1038,8 @@ async function handleRoute(request, { params }) {
       }
       
       const file = result.rows[0]
-      const filePath = path.join(process.cwd(), 'public', 'uploads', 'additional', file.file_name)
+      const safeFile = path.basename(file.file_name)
+      const filePath = path.join(process.cwd(), 'public', 'uploads', 'additional', safeFile)
       
       try {
         const fileBuffer = await fs.readFile(filePath)
