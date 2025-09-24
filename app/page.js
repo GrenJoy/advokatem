@@ -37,11 +37,19 @@ export default function App() {
   const [showArchiveDialog, setShowArchiveDialog] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [showArchivedCases, setShowArchivedCases] = useState(false)
+  const [archivedCases, setArchivedCases] = useState([])
 
   // Load cases on component mount
   useEffect(() => {
     loadCases()
   }, [])
+
+  // Load archived cases when archive panel is opened
+  useEffect(() => {
+    if (showArchivedCases) {
+      loadArchivedCases()
+    }
+  }, [showArchivedCases])
 
   const loadCases = async () => {
     try {
@@ -58,6 +66,41 @@ export default function App() {
       toast.error('Ошибка соединения с сервером')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const loadArchivedCases = async () => {
+    try {
+      const response = await fetch('/api/optimized/cases/archived')
+      if (response.ok) {
+        const data = await response.json()
+        setArchivedCases(data)
+      } else {
+        toast.error('Ошибка загрузки архива')
+      }
+    } catch (error) {
+      console.error('Error loading archived cases:', error)
+      toast.error('Ошибка соединения с сервером')
+    }
+  }
+
+  const restoreCase = async (caseId) => {
+    try {
+      const response = await fetch(`/api/optimized/cases/${caseId}/restore`, {
+        method: 'POST'
+      })
+      
+      if (response.ok) {
+        const restoredCase = await response.json()
+        setCases([...cases, restoredCase.case])
+        setArchivedCases(archivedCases.filter(c => c.id !== caseId))
+        toast.success('Дело восстановлено из архива')
+      } else {
+        toast.error('Ошибка восстановления дела')
+      }
+    } catch (error) {
+      console.error('Error restoring case:', error)
+      toast.error('Ошибка соединения с сервером')
     }
   }
 
@@ -589,6 +632,60 @@ export default function App() {
         <div className="grid gap-8 grid-cols-1 lg:grid-cols-4">
           {/* Left Sidebar - Cases List */}
           <div className="lg:col-span-1">
+            {/* Archive Panel */}
+            {showArchivedCases && (
+              <div className="bg-yellow-50 rounded-lg shadow-sm border border-yellow-200 mb-4">
+                <div className="p-4 border-b border-yellow-200">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-lg font-semibold text-yellow-800">Архив дел</h3>
+                    <Button 
+                      variant="ghost" 
+                      size="sm"
+                      onClick={() => setShowArchivedCases(false)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <p className="text-sm text-yellow-600">Архивированные дела</p>
+                </div>
+                
+                <div className="max-h-96 overflow-y-auto p-4">
+                  {archivedCases.length === 0 ? (
+                    <div className="text-center text-yellow-600 py-8">
+                      <FileText className="h-12 w-12 mx-auto mb-4 text-yellow-300" />
+                      <p>Архив пуст</p>
+                      <p className="text-sm">Нет архивированных дел</p>
+                    </div>
+                  ) : (
+                    archivedCases.map((case_) => (
+                      <div 
+                        key={case_.id}
+                        className="p-3 border border-yellow-200 rounded-lg mb-2 hover:bg-yellow-100 transition-colors bg-white"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-medium text-sm text-gray-900">{case_.title}</h4>
+                          <Badge variant="outline" className="text-xs">Архив</Badge>
+                        </div>
+                        <p className="text-xs text-gray-600 mb-2">{case_.client_name}</p>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs text-gray-500">
+                            {new Date(case_.created_at).toLocaleDateString('ru-RU')}
+                          </span>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => restoreCase(case_.id)}
+                            className="text-xs"
+                          >
+                            Восстановить
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
             <div className="bg-white rounded-lg shadow-sm border">
               <div className="p-6 border-b">
                 <div className="flex justify-between items-center mb-4">
@@ -740,24 +837,23 @@ export default function App() {
                           onClick={() => openPhotoModal(doc, index)}
                         >
                           <div className="text-center">
-                            {/* Photo thumbnail or icon */}
-                            {doc.file_type && doc.file_type.startsWith('image/') ? (
-                              <div className="w-full h-16 bg-gray-200 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
-                                <img 
-                                  src={`/api/optimized/photos/${doc.id}/view`} 
-                                  alt={doc.original_name}
-                                  className="max-w-full max-h-full object-contain"
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                    e.target.parentNode.appendChild(document.createElement('div')).innerHTML = '<svg class="h-8 w-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" /></svg>';
-                                  }}
-                                />
-                              </div>
-                            ) : (
-                              <div className="w-full h-16 bg-gray-200 rounded-lg mb-2 flex items-center justify-center">
-                                <FileText className="h-8 w-8 text-blue-600" />
-                              </div>
-                            )}
+                             {/* Photo thumbnail or icon */}
+                             <div className="w-full h-20 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-lg mb-2 flex items-center justify-center overflow-hidden border border-blue-200">
+                               <img 
+                                 src={`/api/optimized/photos/${doc.id}/view`} 
+                                 alt={doc.original_name}
+                                 className="w-full h-full object-cover rounded-lg"
+                                 onError={(e) => {
+                                   e.target.style.display = 'none';
+                                   const fallback = document.createElement('div');
+                                   fallback.className = 'w-full h-full flex items-center justify-center';
+                                   fallback.innerHTML = doc.file_type && doc.file_type.startsWith('image/') 
+                                     ? '<svg class="h-8 w-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M4,4H7L9,2H15L17,4H20A2,2 0 0,1 22,6V18A2,2 0 0,1 20,20H4A2,2 0 0,1 2,18V6A2,2 0 0,1 4,4M12,7A5,5 0 0,0 7,12A5,5 0 0,0 12,17A5,5 0 0,0 17,12A5,5 0 0,0 12,7M12,9A3,3 0 0,1 15,12A3,3 0 0,1 12,15A3,3 0 0,1 9,12A3,3 0 0,1 12,9Z" /></svg>'
+                                     : '<svg class="h-8 w-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" /></svg>';
+                                   e.target.parentNode.appendChild(fallback);
+                                 }}
+                               />
+                             </div>
                             <div className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                               {index + 1}
                             </div>
@@ -970,32 +1066,36 @@ export default function App() {
             
                     <div className="bg-white rounded-lg shadow-lg p-6">
                       <div className="text-center mb-4">
-                        {selectedPhoto?.file_type && selectedPhoto.file_type.startsWith('image/') ? (
-                          <div className="w-full max-w-md mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
-                            <img 
-                              src={`/api/optimized/photos/${selectedPhoto.id}/view`} 
-                              alt={selectedPhoto.original_name}
-                              className="max-w-full max-h-80 object-contain rounded-lg"
-                              onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentNode.appendChild(document.createElement('div')).innerHTML = '<div class="w-24 h-24 mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center"><svg class="h-12 w-12 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" /></svg></div>';
-                              }}
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-24 h-24 mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <FileText className="h-12 w-12 text-gray-400" />
-                          </div>
-                        )}
-                        <h3 className="text-lg font-semibold text-gray-800 mb-1">
+                        <div className="w-full max-w-lg mx-auto mb-4 bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6 border-2 border-dashed border-blue-200">
+                          <img 
+                            src={`/api/optimized/photos/${selectedPhoto?.id}/view`} 
+                            alt={selectedPhoto?.original_name}
+                            className="w-full h-auto max-h-96 object-contain rounded-lg shadow-lg"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              const fallback = document.createElement('div');
+                              fallback.className = 'w-full h-64 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex flex-col items-center justify-center';
+                              fallback.innerHTML = `
+                                <div class="w-16 h-16 bg-gray-300 rounded-full flex items-center justify-center mb-4">
+                                  <svg class="h-8 w-8 text-gray-500" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" />
+                                  </svg>
+                                </div>
+                                <p class="text-sm text-gray-600 font-medium">${selectedPhoto?.original_name}</p>
+                                <p class="text-xs text-gray-500 mt-1">Файл не может быть отображен</p>
+                              `;
+                              e.target.parentNode.appendChild(fallback);
+                            }}
+                          />
+                        </div>
+                        <h3 className="text-lg font-semibold text-gray-800 mb-2">
                           {selectedPhoto?.original_name}
                         </h3>
-                        <p className="text-sm text-gray-500">
-                          Загружен: {selectedPhoto && new Date(selectedPhoto.created_at).toLocaleDateString('ru-RU')}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Размер: {selectedPhoto && (selectedPhoto.file_size / 1024).toFixed(1)} KB
-                        </p>
+                        <div className="flex justify-center space-x-4 text-sm text-gray-500">
+                          <span>📅 {selectedPhoto && new Date(selectedPhoto.created_at).toLocaleDateString('ru-RU')}</span>
+                          <span>📦 {selectedPhoto && (selectedPhoto.file_size / 1024).toFixed(1)} KB</span>
+                          <span>📄 {selectedPhoto?.file_type || 'Неизвестно'}</span>
+                        </div>
                       </div>
               
                       {/* Navigation buttons */}

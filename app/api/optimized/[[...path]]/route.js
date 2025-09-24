@@ -351,6 +351,19 @@ async function handleRoute(request, { params }) {
     if (route === '/cases' && method === 'GET') {
       const result = await db.query(`
         SELECT * FROM cases 
+        WHERE status != 'archived' 
+        ORDER BY created_at DESC 
+        LIMIT 100
+      `)
+      
+      return handleCORS(NextResponse.json(result.rows))
+    }
+
+    // Archived cases endpoint
+    if (route === '/cases/archived' && method === 'GET') {
+      const result = await db.query(`
+        SELECT * FROM cases 
+        WHERE status = 'archived' 
         ORDER BY created_at DESC 
         LIMIT 100
       `)
@@ -484,6 +497,39 @@ async function handleRoute(request, { params }) {
               console.error('Archive case error:', error)
               return handleCORS(NextResponse.json(
                 { error: "Archive failed: " + error.message }, 
+                { status: 500 }
+              ))
+            }
+          }
+
+          // Restore case from archive
+          if (route.match(/^\/cases\/[^\/]+\/restore$/) && method === 'POST') {
+            const caseId = route.split('/')[2]
+            
+            if (!caseId) {
+              return handleCORS(NextResponse.json({ error: 'Case ID is required' }, { status: 400 }))
+            }
+
+            try {
+              const result = await db.query(`
+                UPDATE cases 
+                SET status = 'active', updated_at = $1
+                WHERE id = $2 AND status = 'archived'
+                RETURNING *
+              `, [new Date().toISOString(), caseId])
+              
+              if (result.rows.length === 0) {
+                return handleCORS(NextResponse.json({ error: 'Case not found or not archived' }, { status: 404 }))
+              }
+              
+              // Clear context cache
+              await clearCaseCache(caseId, db)
+              
+              return handleCORS(NextResponse.json({ success: true, case: result.rows[0] }))
+            } catch (error) {
+              console.error('Restore case error:', error)
+              return handleCORS(NextResponse.json(
+                { error: "Restore failed: " + error.message }, 
                 { status: 500 }
               ))
             }
@@ -732,36 +778,59 @@ async function handleRoute(request, { params }) {
       return handleCORS(NextResponse.json(result.rows))
     }
 
-    // Photo view endpoint
-    if (route.match(/^\/photos\/[^\/]+\/view$/) && method === 'GET') {
-      const photoId = route.split('/')[2]
-      
-      const result = await db.query(`
-        SELECT * FROM case_photos WHERE id = $1
-      `, [photoId])
-      
-      if (result.rows.length === 0) {
-        return handleCORS(NextResponse.json({ error: "Photo not found" }, { status: 404 }))
-      }
-      
-      const photo = result.rows[0]
-      
-      // For now, return a placeholder image URL
-      // In production, you would serve the actual file
-      return handleCORS(NextResponse.json({
-        id: photo.id,
-        original_name: photo.original_name,
-        file_path: photo.file_path,
-        placeholder_url: `data:image/svg+xml;base64,${Buffer.from(`
-          <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
-            <rect width="400" height="300" fill="#f3f4f6"/>
-            <text x="200" y="150" text-anchor="middle" font-family="Arial" font-size="16" fill="#6b7280">
-              ${photo.original_name}
-            </text>
-          </svg>
-        `).toString('base64')}`
-      }))
-    }
+          // Photo view endpoint - return actual image data
+          if (route.match(/^\/photos\/[^\/]+\/view$/) && method === 'GET') {
+            const photoId = route.split('/')[2]
+            
+            const result = await db.query(`
+              SELECT * FROM case_photos WHERE id = $1
+            `, [photoId])
+            
+            if (result.rows.length === 0) {
+              return handleCORS(NextResponse.json({ error: "Photo not found" }, { status: 404 }))
+            }
+            
+            const photo = result.rows[0]
+            
+            // For now, create a placeholder image with file info
+            // In production, you would serve the actual file from storage
+            const svgContent = `
+              <svg width="400" height="300" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+                    <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+                  </linearGradient>
+                </defs>
+                <rect width="400" height="300" fill="url(#grad)"/>
+                <rect x="50" y="50" width="300" height="200" fill="white" rx="10"/>
+                <text x="200" y="120" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" fill="#374151">
+                  ${photo.original_name}
+                </text>
+                <text x="200" y="140" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">
+                  ${(photo.file_size / 1024).toFixed(1)} KB
+                </text>
+                <text x="200" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">
+                  ${new Date(photo.created_at).toLocaleDateString('ru-RU')}
+                </text>
+                <circle cx="200" cy="200" r="20" fill="#3b82f6"/>
+                <text x="200" y="205" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="white">📷</text>
+              </svg>
+            `
+            
+            const svgBuffer = Buffer.from(svgContent)
+            
+            return new NextResponse(svgBuffer, {
+              headers: {
+                'Content-Type': 'image/svg+xml',
+                'Cache-Control': 'public, max-age=3600',
+                'Access-Control-Allow-Origin': process.env.CORS_ORIGINS || '*',
+                'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+                'Access-Control-Allow-Credentials': 'true'
+              }
+            })
+          }
 
     // Get detailed OCR text for specific photo
     if (route.match(/^\/photos\/[^\/]+\/ocr-details$/) && method === 'GET') {
