@@ -614,8 +614,25 @@ export default function App() {
                           onClick={() => openPhotoModal(doc, index)}
                         >
                           <div className="text-center">
-                            <FileText className="h-12 w-12 mx-auto mb-2 text-blue-600" />
-                            <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center font-bold">
+                            {/* Photo thumbnail or icon */}
+                            {doc.file_type && doc.file_type.startsWith('image/') ? (
+                              <div className="w-full h-16 bg-gray-200 rounded-lg mb-2 flex items-center justify-center overflow-hidden">
+                                <img 
+                                  src={`/api/optimized/photos/${doc.id}/view`} 
+                                  alt={doc.original_name}
+                                  className="max-w-full max-h-full object-contain"
+                                  onError={(e) => {
+                                    e.target.style.display = 'none';
+                                    e.target.parentNode.appendChild(document.createElement('div')).innerHTML = '<svg class="h-8 w-8 text-blue-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" /></svg>';
+                                  }}
+                                />
+                              </div>
+                            ) : (
+                              <div className="w-full h-16 bg-gray-200 rounded-lg mb-2 flex items-center justify-center">
+                                <FileText className="h-8 w-8 text-blue-600" />
+                              </div>
+                            )}
+                            <div className="absolute top-1 right-1 bg-blue-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                               {index + 1}
                             </div>
                             <p className="text-xs font-medium truncate mb-1">{doc.original_name}</p>
@@ -815,9 +832,23 @@ export default function App() {
             
                     <div className="bg-white rounded-lg shadow-lg p-6">
                       <div className="text-center mb-4">
-                        <div className="w-24 h-24 mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center">
-                          <FileText className="h-12 w-12 text-gray-400" />
-                        </div>
+                        {selectedPhoto?.file_type && selectedPhoto.file_type.startsWith('image/') ? (
+                          <div className="w-full max-w-md mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center overflow-hidden">
+                            <img 
+                              src={`/api/optimized/photos/${selectedPhoto.id}/view`} 
+                              alt={selectedPhoto.original_name}
+                              className="max-w-full max-h-80 object-contain rounded-lg"
+                              onError={(e) => {
+                                e.target.style.display = 'none';
+                                e.target.parentNode.appendChild(document.createElement('div')).innerHTML = '<div class="w-24 h-24 mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center"><svg class="h-12 w-12 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M18,20H6V4H13V9H18V20Z" /></svg></div>';
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div className="w-24 h-24 mx-auto mb-3 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <FileText className="h-12 w-12 text-gray-400" />
+                          </div>
+                        )}
                         <h3 className="text-lg font-semibold text-gray-800 mb-1">
                           {selectedPhoto?.original_name}
                         </h3>
